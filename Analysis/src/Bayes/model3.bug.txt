@@ -1,0 +1,28 @@
+# Model 3
+model{   										 
+	for (i in 1:N)	 {
+		
+			L[i, 2] ~ dnorm(L_Exp[i, 2], tau)	
+			L_Exp[i, 2] <-  Linf*(1.0 - exp(-k[i]*(A[i]+dt[i])))
+			L.pred[i, 2] ~ dnorm(L_Exp[i, 2], tau)
+			p.value[i, 2] <- step(L.pred[i, 2] - L[i, 2])
+		
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k[i]*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		k[i] ~ dnorm(k_mu, k_tau) I(0,1)		
+		A[i] ~ dgamma(shape, rate)
+	}
+	Linf_std <- sqrt(1/Linf_tau)
+	k_std <- sqrt(1/k_tau)
+	var <- 1/tau
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+	Linf_mu ~ dnorm(100, 0.0001)
+	Linf_tau ~ dgamma(0.01, 0.0001)
+	shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(1, 1)
+	k_tau ~ dgamma(0.01, 0.0001)
+	tau ~ dgamma(0.01, 0.0001)
+}

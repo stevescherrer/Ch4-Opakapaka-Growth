@@ -1,0 +1,13 @@
+#!/bin/bash  
+#SBATCH -J “BootModel11” # Name for your job
+#SBATCH -n 1 # Number of task
+#SBATCH -c 20 # Number of cores
+#SBATCH -N 1 # Ensure that all cores are on one machine
+#SBATCH -t 3-00:00 # Runtime in day-hours:minutes
+#SBATCH -p kill.q # Partition to submit to the standard compute node partition in this example
+#SBATCH -o boot_mod_11_out.txt # Standard out goes to this file
+#SBATCH -e boot_mod_11_err.txt # Standard err goes to this file
+#SBATCH --mail-user scherrer@hawaii.edu # this is the email you wish to be notified at
+#SBATCH --mail-type=START,END,FAIL
+
+Rscript Okamoto_Mark_Recapture/src/boot_model_11.R   # or we could also put R CMD BATCH hello.R if we do the example.out and example.err files will not be created 

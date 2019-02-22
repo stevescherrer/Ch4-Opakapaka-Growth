@@ -148,7 +148,7 @@ model_1 = jags(data, inits,
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
-save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 
 
 ## Model 2: Linf varies between individuals, K is fixed
@@ -158,7 +158,7 @@ model_2 = jags(data, inits,
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
-save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 
 ## Model 3: K varies between individuals, Linf is fixed
 model_3 = jags(data, inits, 
@@ -167,7 +167,7 @@ model_3 = jags(data, inits,
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
-save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 
 ## Model 4: Linf and K are fixed
 model_4 = jags(data, inits, 
@@ -176,7 +176,7 @@ model_4 = jags(data, inits,
                parameters.to.save =  c('Linf_mu', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
-save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 
 
 growth_models = list(model_1, model_2, model_3, model_4)

@@ -15,10 +15,8 @@ Here we compare data collected from the two studies using the likelihood ratio t
 first we need to set up our workspace
 
 ```{r}
-proj_dir = '/Volumes/GoogleDrive/My Drive/Weng Lab/Data/Bottomfish/Okamoto_Mark_Recapture'
-if(!"Okamoto_Mark_Recapture" %in% strsplit(proj_dir, '/')[[1]]){
-  proj_dir = file.path(getwd(), "Okamoto_Mark_Recapture")
-}
+proj_dir = '/Users/stephenscherrer/Documents/Work/Disseratation/Ch-4.-Estimating-Growth-Parameters-master/Analysis'
+
 data_dir = file.path(proj_dir, "data")
 
 ## Installing principle dependencies

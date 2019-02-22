@@ -14,17 +14,19 @@ model{
 		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
 		A[i] ~ dgamma(Shape, rate)
 	}
-
-	Linf_std <- sqrt(1/Linf_tau)
 	k_std <- sqrt(1/k_tau)
 	variance <- 1/tau
-	k ~ dnorm(k_mu, k_tau) T(0,1)
+	k ~ dnorm(k_mu, k_tau) 
 	Linf ~ dnorm(Linf_mu,  Linf_tau)
 	Linf_mu ~ dnorm(100, 0.0001)
-	Linf_tau ~ dgamma(0.01, 0.0001)
+	Linf_tau ~ dgamma(0.001, 0.0001)
+	Linf_std <- sqrt(1/Linf_tau)
 	Shape ~ dunif(0, 100)
-	rate ~ dunif(0, 1000)
-	k_mu ~ dbeta(1, 1)
-	k_tau ~ dgamma(0.01, 0.0001)
-	tau ~ dgamma(0.01, 0.0001)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(1, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(0.001, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
 }
+
+
+

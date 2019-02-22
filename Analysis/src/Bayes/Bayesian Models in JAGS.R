@@ -5,6 +5,7 @@ data_dir = file.path(proj_dir, "data")
 src_dir = file.path(proj_dir, 'src')
 results_dir = file.path(proj_dir, 'results')
 
+### Installing principle dependencies
 # install.packages("R2jags")
 library('R2jags')
 
@@ -12,6 +13,9 @@ library('R2jags')
 mark_recapture_data = read.csv(file.path(data_dir, 'HO Mstr, temp (version 1).csv'), stringsAsFactors =  FALSE)
 print(colnames(mark_recapture_data))
 head(mark_recapture_data)
+
+#### Cleaning Data
+min_time_at_lib = 60
 
 ### Renaming data columns
 colnames(mark_recapture_data) = c('tag_date', 'location', 'station', 'depth_f', 'species', 'previously_tagged', 'tag_id','fork_length_in', 'remarks', 'recapture_1_date', 'recapture_1_location', 'recapture_1_station', 'recapture_1_depth_f', 'recapture_1_fork_length_in', 'weight_1_lbs', 'days_1_free', 'growth_1_in', 'distance_1_miles','retagged_1',
@@ -25,8 +29,7 @@ n_tagged_fish = dim(mark_recapture_data)[1] # 4245!
 
 ### Subsetting out only Opakapaka with tag IDs - That is, fish that were marked
 mark_recapture_data = mark_recapture_data[mark_recapture_data$species == '1' & mark_recapture_data$tag_id != '', ]
-dim(mark_recapture_data)[1] # This gets you to the previously published 4179 tagged paka number from Kobayashi, Okamoto, & Oishi . for some reason doesn't exclude fish marked 'died'
-n_tagged_paka = dim(mark_recapture_data)[1]
+n_tagged_paka = dim(mark_recapture_data)[1] # This gets you  the previously published 4179 tagged paka number from Kobayashi, Okamoto, & Oishi . for some reason doesn't exclude fish marked 'died'
 
 #### Adusting Data Classes
 ### Formatting Dates (Converting Characters to POSIXct)
@@ -52,149 +55,154 @@ mark_recapture_data = mark_recapture_data[!is.na(mark_recapture_data$recapture_1
 ### This leaves us with 
 dim(mark_recapture_data)[1] # individuals
 
+#### Creating Model Data
 
-#### Restructuring data for JAGS 
-## We know the maximum number of times a single fish was recaptured from the structure of our dataset
-max_recaptures = 4
-## Preallocating data objects in memory
-L = matrix(nrow = length(mark_recapture_data$tag_id), ncol = (max_recaptures + 1), data = NA) # Note that matrix L gets an extra column corrosponding to initial fork length at tagging
-dt = matrix(nrow = length(mark_recapture_data$tag_id), ncol = max_recaptures, data = NA) # Note that because dt is the difference in time, therefore it is one column less than L
+### L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
+L = cbind(mark_recapture_data$fork_length_cm, mark_recapture_data$recapture_1_fork_length_cm, mark_recapture_data$recapture_2_fork_length_cm, mark_recapture_data$recapture_3_fork_length_cm, mark_recapture_data$recapture_4_fork_length_cm)
 
-## Defining a minimum time that must elapse before a recapture occurs
-min_time_at_lib = 60 # in days
+### dt: A matrix of delta t (years) corrosponding to time between capture events. Column 1 is a dummy column that will be removed before data is wrapped in a list
+dt = cbind(rep(9999, length(mark_recapture_data$recapture_1_date)), difftime(mark_recapture_data$recapture_1_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_2_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_3_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_4_date, mark_recapture_data$tag_date, unit = 'days') / 365)
 
-## Now lets reformat our data
-for(i in 1:length(mark_recapture_data$tag_id)){
-  ## For each individual, we start at the intial length at tagging and work our way up through recaptures
-  L[i,1] = as.numeric(mark_recapture_data$fork_length_cm[i])
-  ## Recapture 1
-  if(!is.na(mark_recapture_data$recapture_1_fork_length_cm[i])){
-    ## Calculate differece in time and if its greater than 60 days
-    dt1 = difftime(mark_recapture_data$recapture_1_date[i], mark_recapture_data$tag_date[i], units = 'days') / 365
-    if(all(!is.na(dt1) & dt1 > min_time_at_lib/365)){
-      # Updating vector n
-      # n[i] = n[i] + 1
-      # Getting recorded fork length
-      L[i, 2] = as.numeric(mark_recapture_data$recapture_1_fork_length_cm[i])
-      # Calculating time at liberty
-      dt[i, 1] = as.numeric(dt1)
-    }
-  }
-  
-  ### Repeat the above for subsequent recaptures
-  ## Recapture 2
-  if(!is.na(mark_recapture_data$recapture_2_fork_length_cm[i])){
-    dt2 = difftime(mark_recapture_data$recapture_2_date[i], mark_recapture_data$tag_date[i], units = 'days') / 36
-    if(all(!is.na(dt2) & dt2 > min_time_at_lib/365)){
-     # n[i] = n[i] + 1
-      L[i, 3] = as.numeric(mark_recapture_data$recapture_2_fork_length_cm[i])
-      dt[i, 2] = as.numeric(dt2)
-    }
-  }
-  
-  ## Recapture 3
-  if(!is.na(mark_recapture_data$recapture_3_fork_length_cm[i])){
-    dt3 = difftime(mark_recapture_data$recapture_3_date[i], mark_recapture_data$tag_date[i], units = 'days') / 365
-    if(all(!is.na(dt3) & dt3 > min_time_at_lib/365)){
-      n[i] = n[i] + 1
-      L[i, 4] = as.numeric(mark_recapture_data$recapture_3_fork_length_cm[i])
-      dt[i, 3] = as.numeric(dt3)
-    }
-  }
-  
-  if(!is.na(mark_recapture_data$recapture_4_fork_length_cm[i])){
-    dt4 = difftime(mark_recapture_data$recapture_4_date[i], mark_recapture_data$tag_date[i], units = 'days') / 365
-    if(all(!is.na(dt4) & dt4 > min_time_at_lib/365)){
-     # n[i] = n[i] + 1
-      L[i, 5] = as.numeric(mark_recapture_data$recapture_4_fork_length_cm[i])
-      dt[i,4] = as.numeric(dt4)
-    }
+### Ommitting data when the time at liberty is less than our defined minimum period
+L[dt < min_time_at_lib / 365] = NA
+dt[dt < min_time_at_lib / 365] = NA
+
+### Removing any data from fish without a valid recapture event.
+rm_ind = c()
+## Loop through each individual
+for(i in 1:nrow(L)){
+  ## Flag individuals with less than 2 valid recaptures
+  if(length(which(is.na(L[i, ]))) >= length(L[i, ]) - 1){
+    rm_ind = c(rm_ind, i)
+  } else if(length(which(is.na(dt[i, ]))) >= length(dt[i, ]) - 1){
+    rm_ind = c(rm_ind, i)
   }
 }
+## Remove data flagged for removal
+L = L[-rm_ind, ]; dt = dt[-rm_ind, ]
 
-### Remove any fish missing an initial length
-rm_ind = which(is.na(L[ ,1]))
-L = L[-rm_ind, ]; dt = dt[-rm_ind, ] #, n = n[-rm_ind]; 
 
-### L and dt matricies need to be adjusted for fish recaptured more than once but for whom one of their recaptures was excluded for being less than our 60 day threshold
-## Set up vector indexing which fish to remove after our loop.We will remove fish that have no recaptures after 60 days a liberty.
-valid_recaps = rep(TRUE, dim(dt)[1])
-
+### Left justifying matricies dt and L
 ## Loop through each fish
-for(i in 1:dim(dt)[1]){
-  # If the first column of NAs does not come after the last column of data or if the whole row isn't NAs
-  while(!all(is.na(dt[i, ])) && (!max(which(!is.na(dt[i, ]))) < min(which(is.na(dt[i, ]))))){
-    # We shift all our data after the NA over by one and try again 
-    L[i, (1 + min(which(is.na(dt[i, ])))):ncol(dt)] =  c(L[i, (1 + (min(which(is.na(dt[i, ]))))+ 1):ncol(dt)], NA)
-    dt[i, min(which(is.na(dt[i, ]))):ncol(dt)] =  c(dt[i, (min(which(is.na(dt[i, ]))) + 1):ncol(dt)], NA)
-    
-  }
-  if(all(is.na(dt[i, ]))){
-    valid_recaps[i] = FALSE
+for(i in 1:nrow(L)){
+  ## If they have any NA values (total captures < 5)
+  if(any(is.na(L[i, ]))){
+    ## For as long as there is an NA value with a numeric right ajacent
+    while(min(which(is.na(dt[i, ]))) < max(which(!is.na(dt[i, ])))){
+      ## For matricies dt and L, create a new vector without the NA index, add a new NA to the rightmost side, and replace the current line 
+      dt[i, ] = c(dt[i, 1:min(which(is.na(L[i, ])))-1], dt[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], NA)
+      L[i, ] = c(L[i, 1:min(which(is.na(L[i, ])))-1], L[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], NA)
+    }
   }
 }
 
-## Removing fish without valid recaptures
-dt = dt[valid_recaps, ]
-L = L[valid_recaps, ]
+#### We should now have the same number of rows as tagdat ####
+nrow(tagdat) == nrow(L)
 
-## Redetermining the number of unique capture/recapture events for each fish
-n = rep(0, length(dt[,1]))
+#### dt still has a column on the right that is full of bullshit values
+### Removing the first column of dt
+dt = dt[ ,-1]
+
+#### Getting values of n, a vector where values represent the number of valid recaptures for individuals
+n = rep(0, nrow(dt))
 for(i in 1:length(n)){
   n[i] = length(L[i, ]) - length(which(is.na(L[i, ])))
 }
 
-## Check that the number of recaptures (n) for each fish is equal to the number of dts for each fish
-for(i in 1:length(n)){
-  if(any(is.na(L[i, 1:n[i]]) | is.na(dt[i, n[i]-1]))){
-    print(i)
-  }
-}
 
-## Wrap all of our data in a list for handing to JAGS
+## Print number of rows in L. Should be 387
+dim(L)
+
+#### Wrapping all our data into a list for our model
 data = list(n = n, L = L, dt = dt, N = length(n))
 
-
-#### Defining initial variables
-## 3 lists corrosponding to each chain that will be initialized
-inits1 = list('Linf_mu' = 50, 'Linf_tau' = 0.001, 'Shape' = 15, 'rate' = 9, 'k_mu' = 0.3, 'k_tau' = 2000, 'tau' = 0.4)
-inits2 = list('Linf_mu' = 60*2, 'Linf_tau' = 0.001, 'Shape' = 1, 'rate' = 21, 'k_mu' = 0.3*2, 'k_tau' = 0.001, 'tau' = 0.001)
-inits3 = list('Linf_mu' = 60/2, 'Linf_tau' = 0.001, 'Shape' = 1, 'rate' = 21, 'k_mu' = 0.3/2, 'k_tau' = 0.001, 'tau' = 0.001)
+##### Model Specification #####
+#### Defining inits - a list of initial variables
+## Initial values for each chain are stored in 3 lists with elements corrosponding to all variables to be initialized
+inits1 = list('Linf_mu' = 60,   'k_mu' = 0.30)
+inits2 = list('Linf_mu' = 60*2, 'k_mu' = 0.3*2)
+inits3 = list('Linf_mu' = 60/2, 'k_mu' = 0.3/2)
 ## Creating a single list that contains the lists corrosponding to each chain's initial values
 inits = list(inits1, inits2, inits3)
 
-#### Running our models
-model_t = jags(data, inits, 
-               model.file = file.path(src_dir,'Bayes/ModelTest_Jags.txt'),
-               # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               DIC = T, 
-               n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+#### Running our models ####
 
+## Running a test model that omits intermediate recaptures.
+## Running this test model should give similar paramter estimates to maximum likelihood method. 
+# model_t = jags(data, inits, 
+#                model.file = file.path(src_dir,'Bayes/ModelTest_Jags.txt'),
+#                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
+#                parameters.to.save =  c('Linf_std', 'k_std', 'variance', 'Linf_mu', 'Linf_tau', 'Shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
+#                DIC = T, 
+#                n.chains = 3, n.iter = 10000, n.burnin = 100, n.thin = 50)
+# 
+# save.image(file.path(results_dir, 'Bayesian Workspace Img'))
+
+## Model 1: Linf and K vary between individuals
 model_1 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model1_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
 
+
+## Model 2: Linf varies between individuals, K is fixed
 model_2 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model2_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
 
+## Model 3: K varies between individuals, Linf is fixed
 model_3 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model3_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
 
+## Model 4: Linf and K are fixed
 model_4 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model4_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
+               parameters.to.save =  c('Linf_mu', 'k_mu', 'k_std'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+save.image(file.path(results_dir, 'Bayes/Bayesian Workspace Img'))
+
+
+growth_models = list(model_1, model_2, model_3, model_4)
+##### Model Diagnostics
+for(model in growth_models){
+  read.line('Press Enter to View Diagnostics for', names(model))
+  
+  ### Summary Statistics and Parameter Estimates
+  summary(model)
+  
+  ### Generating MCMC object for analysis
+  model_mcmc = as.mcmc(model)
+  
+  ### xy plot
+  xyplot(model_mcmc)
+  
+  ### Trace and Density Plots
+  plot(model_mcmc)
+  
+  ### Autocorrelation plots
+  autocorr.plot(model_mcmc)
+  
+  #### Other Diagnostics using CODA package
+  gelman.plot(model_mcmc)
+  geweke.diag(model_mcmc)
+  geweke.plot(model_mcmc)
+  raftery.diag(model_mcmc)
+  heidel.diag(model_mcmc)
+}

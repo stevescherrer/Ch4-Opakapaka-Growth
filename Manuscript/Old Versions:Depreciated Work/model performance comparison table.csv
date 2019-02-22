@@ -1,0 +1,33 @@
+,model.id,adj_r.sq,variance
+23,Andrews et. al (2012),0.8191,12.998
+27,Bayesian Model 1,0.8145,13.5908
+28,Bayesian Model 2,0.8143,12.8505
+29,Bayesian Model 3,0.8121,14.4483
+30,Bayesian Model 4,0.8177,26.4568
+9,booted_param_ests_all_tagging_data,0.8167,12.725
+8,booted_param_ests_model1,0.8169,12.7919
+2,booted_param_ests_model4a,0.8119,14.0734
+3,booted_param_ests_model4b,0.8188,12.5917
+4,booted_param_ests_model4c,0.8187,12.5892
+5,booted_param_ests_model4d,0.8194,13.0924
+6,booted_param_ests_model4e,0.8153,13.2875
+7,booted_param_ests_model4f,0.8024,17.7899
+13,Brouard & Granperrin (1984),0.8156,13.225
+17,DeMartini et al. (1994),0.8196,16.334
+22,Fry et al. (2003),0.606,85.789
+19,Hardman-Mountford et al. (1997),0.7964,117.794
+26,Maximum Likelihood - Francis,0.5317,281.7585
+1,Maximum Likelihood - Tagging & Otolith Data,0.8171,12.9241
+32,Maximum Likelihood - Tagging & Otolith Data,0.8171,12.9241
+31,Maximum Likelihood - Tagging Data,0.8167,12.7271
+20,Mees and Rousseau (1997),0.8179,25.413
+18,Moffit and Parrish (1996) - Constrained Linf,0.8176,22.166
+25,OʻMalley (2015) - Faben,0.809,17.267
+24,OʻMalley (2015) - Gulland and Holt,0.8004,17.937
+21,Pilling et al. (2000),0.7134,50.569
+15,Radtke (1987),0.7716,93.814
+10,Ralston (1980),0.8132,15.605
+11,Ralston and Miyamoto (1983) - Constrained Linf,0.8077,14.872
+12,Ralston and Miyamoto (1983) - Unonstrained Linf,0.8178,12.742
+16,Ralston and Willaims (1988),0.8119,15.476
+14,Uchiyama and Tagami (1984),0.7873,249.737

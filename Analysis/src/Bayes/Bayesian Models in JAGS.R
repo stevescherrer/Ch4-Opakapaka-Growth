@@ -1,4 +1,4 @@
-### Running bayesian analysis with JAGS
+### Fitting VBGF Parameters for P. filametnosus using a JAGS based bayesian framework
 proj_dir = getwd()
 data_dir = file.path(proj_dir, "data")
 src_dir = file.path(proj_dir, 'src')

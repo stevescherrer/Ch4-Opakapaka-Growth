@@ -1,5 +1,4 @@
 ### Running bayesian analysis with JAGS
-
 proj_dir = getwd()
 data_dir = file.path(proj_dir, "data")
 src_dir = file.path(proj_dir, 'src')
@@ -8,6 +7,13 @@ results_dir = file.path(proj_dir, 'results')
 ### Installing principle dependencies
 # install.packages("R2jags")
 library('R2jags')
+library('lattice')
+library('coda')
+
+### Loading in saved workspace
+if(file.exists(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))){
+  load(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
+}
 
 ### Loading in Datafile
 mark_recapture_data = read.csv(file.path(data_dir, 'HO Mstr, temp (version 1).csv'), stringsAsFactors =  FALSE)
@@ -145,7 +151,7 @@ inits = list(inits1, inits2, inits3)
 model_1 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model1_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
 save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
@@ -155,7 +161,7 @@ save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 model_2 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model2_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
 save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
@@ -164,7 +170,7 @@ save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 model_3 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model3_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_mu', 'Linf_std', 'k_mu', 'k_std'),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
 save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
@@ -173,17 +179,23 @@ save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 model_4 = jags(data, inits, 
                model.file = file.path(src_dir,'Bayes/Model4_Jags.txt'),
                # parameters = c('Linf_std', 'k_std', 'var', 'Linf_mu', 'Linf_tau', 'shape', 'rate', 'k_mu', 'k_tau', 'tau'), 
-               parameters.to.save =  c('Linf_mu', 'k_mu', 'k_std'),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
 save.image(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
 
+growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
 
-growth_models = list(model_1, model_2, model_3, model_4)
 ##### Model Diagnostics
-for(model in growth_models){
-  read.line('Press Enter to View Diagnostics for', names(model))
+for(i in 1:length(growth_models)){
+  # readline(paste('Press Enter to View Diagnostics for', names(growth_models)[i]))
+  model = growth_models[[i]]
   
+  ## Write out model summary table
+  write.csv(model$BUGSoutput[10], file.path(results_dir, paste('Bayes/', names(growth_models)[i], ' Parameter Summaries.csv')))
+}
+
+for(i in 1:length(growth_models)){
   ### Summary Statistics and Parameter Estimates
   summary(model)
   
@@ -206,3 +218,28 @@ for(model in growth_models){
   raftery.diag(model_mcmc)
   heidel.diag(model_mcmc)
 }
+
+
+#### Extracting coefficients of variation for Linf and K paramters
+cv_df = data.frame(stringsAsFactors = F)
+for(i in 1:length(growth_models)){
+  curr_mod = growth_models[[i]]
+  cv_df = rbind(cv_df, data.frame('model' = names(growth_models)[i], 'Parameter' = 'Linf', 'cv' = curr_mod$BUGSoutput$summary["Linf_mu",'sd'] / curr_mod$BUGSoutput$summary["Linf_mu","mean"] * 100), 
+                data.frame('model' = names(growth_models)[i], 'Parameter' = 'k', 'cv' = curr_mod$BUGSoutput$summary["k_mu",'sd'] / curr_mod$BUGSoutput$summary["k_mu","mean"] * 100))
+}
+
+library(forcats)
+cv_df$`source of individual variability` = 'Other'
+cv_df$`source of individual variability`[cv_df$model == 'model_1'] = 'Both'
+cv_df$`source of individual variability`[cv_df$model == 'model_4'] = 'Neither'
+cv_df$`source of individual variability`[cv_df$model == 'model_2' & cv_df$Parameter == 'Linf'] = 'Self'
+cv_df$`source of individual variability`[cv_df$model == 'model_3' & cv_df$Parameter == 'k'] = 'Self'
+cv_df$`source of individual variability` = as.factor(cv_df$`source of individual variability`)
+cv_df$`source of individual variability` = fct_relevel(cv_df$`source of individual variability`, c('Both', 'Self', 'Other', 'Neither'))
+
+library(ggplot2)
+fig2 = ggplot(cv_df, aes(x = `source of individual variability`, y = cv, col = Parameter)) + geom_point() + geom_line(aes(group = Parameter)) + labs(x = 'Source of Individual Variability', y = 'Coefficient of Variation (Percent)', fill = 'Parameter') + theme(legend.justification = c(1, 1), legend.position = c(.15, .95)) + ylim(0,100)
+pdf(file.path(results_dir, 'Bayes/Fig2 - Coefficients of Variation.pdf'))
+  print(fig2)
+dev.off()
+                          

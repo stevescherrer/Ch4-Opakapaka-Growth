@@ -18,9 +18,9 @@ script_timer = proc.time()
 
 ## Declaring Directory Path
 proj_dir = getwd()
-if(!"Okamoto_Mark_Recapture" %in% strsplit(proj_dir, '/')[[1]]){
-  proj_dir = file.path(getwd(), "Okamoto_Mark_Recapture")
-}
+# if(!"Okamoto_Mark_Recapture" %in% strsplit(proj_dir, '/')[[1]]){
+#   proj_dir = file.path(getwd(), "Okamoto_Mark_Recapture")
+# }
 data_dir = file.path(proj_dir, "data")
 src_dir = file.path(proj_dir, "src")
 results_dir = file.path(proj_dir, "results")
@@ -35,7 +35,7 @@ print(paste('run_results_dir:', run_results_dir))
 
 ## Installing Principle Dependencies
 print('Installing principle dependencies')
-library('notifyR') # #send_push()
+# library('notifyR') # ## send_push()
 library('doParallel')
 # library('beepr')
 library('mixtools')
@@ -859,14 +859,14 @@ bootstrap_results = list()
   ub <- c( 110,  15.0, .50,   1.5,   .50,   15.0,     0,   0,    0,     0)
   
   print('Booting Model 5')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 5")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 5")
   timer5full = proc.time()
   bootstrap_results$booted_param_ests_model5 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_5', boot_iterations = boot_iterations, wt.oto = 0, wt.lf = 0, wt.tag = 1, tagdat = tagdat)
   bootstrap_results$booted_param_ests_model5withPIFG = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_5', boot_iterations = boot_iterations, wt.oto = 0, wt.lf = 0, wt.tag = 1, tagdat = tagdat, tagdat2 = tagdat2, wt.tag2 = 1)
   bootstrap_results$booted_param_ests_model5justPIFG = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_5', boot_iterations = boot_iterations, wt.oto = 0, wt.lf = 0, wt.tag = 0, tagdat = tagdat, tagdat2 = tagdat2, wt.tag2 = 1)
   
   boot_time =  (proc.time() -  timer5full)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 5  complete!"))
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 5  complete!"))
   
 ### Now we'll bootstrap the prefered model structure  
   ## Setting intial params for all data
@@ -875,60 +875,61 @@ bootstrap_results = list()
   lb <- c(  50,   0.1, .05,   0.1,   .05,    0.1,     0, -10,  0.1,    0.1)
   ub <- c( 110,  15.0, .50,   1.5,   .50,   15.0,     0,  10,   15,     15)
   
-  if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 6') {
+  #if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 6') {
   ## 6. Model including all Data sources - Equal weighting to each data type
   print('Booting Model 6')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 6")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 6")
   timer6 = proc.time()
-  bootstrap_results$booted_param_ests_model6 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_6',boot_iterations = boot_iterations, wt.oto = 1/length(otodat$age), wt.lf = 1/length(lfdat$curr_month_year), wt.tag = 1/dim(tagdat)[1], wt.tag2 = 1/dim(tagdat2),  otodat = otodat, tagdat = tagdat, tagdat2 = tagdat2, pseudolf = pseudo_data)
+  bootstrap_results$booted_param_ests_model6 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_6',boot_iterations = boot_iterations, wt.oto = 1/length(otodat$age), wt.lf = 1/length(lfdat$curr_month_year), wt.tag = 1/dim(tagdat)[1],   otodat = otodat, tagdat = tagdat, pseudolf = pseudo_data)
   boot_time =  (proc.time() -  timer6)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr36tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 6 complete!"))
+  # send_push(user = 'uGEHvA4hr36tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 6 complete!"))
   
-} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 7') {
+#} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 7') {
   ## 7. Model including all Data sources - weighting based on number of sample size
   print('Booting Model 7')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 7")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 7")
   timer7 = proc.time()
-  bootstrap_results$booted_param_ests_model7 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_7_all_data', boot_iterations = boot_iterations,tagdat=tagdat, tagdat2 = tagdat2, otodat=otodat, pseudolf=pseudo_data, wt.oto=1, wt.tag=1, wt.tag2 = 1, wt.lf=1)
+  bootstrap_results$booted_param_ests_model7 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_7_all_data', boot_iterations = boot_iterations,tagdat=tagdat, otodat=otodat, pseudolf=pseudo_data, wt.oto=1, wt.tag=1, wt.lf=1)
   boot_time =  (proc.time() -  timer7)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 7 complete!"))
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 7 complete!"))
   
-} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 8') {
+#} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 8') {
   ## 8. Model including all Data sources treated individually - with equal weighting
   print('Booting Model 8')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 8")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 8")
   timer8 = proc.time()
-  bootstrap_results$booted_param_ests_model8 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_8_all_data', boot_iterations = boot_iterations, tagdat=tagdat, tagdat2 = tagdat2, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 1/dim(otodat[otodat$source == 'ralston and miyamoto', ])[1], wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1], wt.tag2 = 1/dim(tagdat2),, wt.lf = 1/length(pseudolf$curr_month_year), wt.lf2 = 0)
+  bootstrap_results$booted_param_ests_model8 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_8_all_data', boot_iterations = boot_iterations, tagdat=tagdat,  otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 1/dim(otodat[otodat$source == 'ralston and miyamoto', ])[1], wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1],  wt.lf = 1/length(pseudolf$curr_month_year), wt.lf2 = 0)
   boot_time =  (proc.time() -  timer8)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 8 complete!"))
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 8 complete!"))
   
-} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 9') {
+#} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 9') {
   ## 9. Model including all Data sources treated individually - weighting based on number of sample size
   print('Booting Model 9')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 9")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 9")
   timer9 = proc.time()
-  bootstrap_results$booted_param_ests_model9 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_9', boot_iterations = boot_iterations, tagdat=tagdat, tagdat2 = tagdat2, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2=NULL, wt.oto= 1, wt.oto2= 1, wt.oto3=1, wt.oto4=1, wt.tag = 1, wt.tag2 = 1, wt.lf = 1, wt.lf2 = 0)
+  bootstrap_results$booted_param_ests_model9 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_9', boot_iterations = boot_iterations, tagdat=tagdat,  otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2=NULL, wt.oto= 1, wt.oto2= 1, wt.oto3=1, wt.oto4=1, wt.tag = 1,  wt.lf = 1, wt.lf2 = 0)
   boot_time =  (proc.time() -  timer9)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 9 complete!"))
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 9 complete!"))
   
-} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 10') {
+#} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 10') {
   ## 10. Model without Ralston & Miyamoto - Equal weighting (Because Brett said this was shit!)
   print('Booting Model 10')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 10")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 10")
   timer10 = proc.time()
-  bootstrap_results$booted_param_ests_model10 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_10', boot_iterations = boot_iterations, tagdat=tagdat, tagdat2 = tagdat2, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2 = NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 0, wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1], wt.tag2 = 1/dim(tagdat2),, wt.lf = 1/length(pseudolf$curr_month_year), wt.lf2 = 0)
+  bootstrap_results$booted_param_ests_model10 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_10', boot_iterations = boot_iterations, tagdat=tagdat, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2 = NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 0, wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1], wt.lf = 1/length(pseudolf$curr_month_year), wt.lf2 = 0)
   boot_time =  (proc.time() -  timer10)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 10 complete!"))
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 10 complete!"))
   
-} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 11') {
+#} else if (mod_eval_results_table[which.max(mod_eval_results_table[ ,2]), 1] == 'model 11') {
   ### 11. Model without Ralston & Miyamoto - weighted by n (Because Brett said this was shit!)
   print('Booting Model 11')
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 11")
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = "model 11")
   timer11 = proc.time()
   bootstrap_results$booted_param_ests_model12 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_11', boot_iterations = boot_iterations, tagdat=tagdat, tagdat2 = tagdat2, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=pseudo_data, pseudolf2=NULL, wt.oto= 1, wt.oto2= 0, wt.oto3=1, wt.oto4=1, wt.tag = 1, wt.tag2 = 1, wt.lf = 1, wt.lf2 = 0)
   boot_time =  (proc.time() -  timer11)[3] / 60 / 60
-  send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 11 complete!"))
-}
+  # send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste(round(boot_time, digits = 2), "Hours later, bootstrapping model 11 complete!"))
+#}
+  
 save.image(file = file.path(src_dir, 'workspace_image.RData'))
 
 

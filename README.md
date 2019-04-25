@@ -44,7 +44,7 @@ R notebooks handle relative paths weird when knitting, prior to running this fil
 After this is completed, script/notebook files should run their respective analyses.
 
 
-Author(s)
+Code Author(s)
 Stephen Scherrer
 
 License

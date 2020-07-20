@@ -1,5 +1,7 @@
-Estimating Opakapaka Growth Parameters using Bayesian and Maximum Likelihood frameworks
+# Ch4-Opakapaka-Growth
+Analysis and Manuscript Associated with Dissertation Chapter 4
 
+Estimating Opakapaka Growth Parameters using Bayesian and Maximum Likelihood frameworks
 This repository contains code for the manuscript 'Revised Growth Estimates for Pristipomoides Filamentosus in the Hawaiian Islands using mark-recapture studies, bayesian analysis, and integrative data approaches'
 Project goals were to fit vonBertalanffy growth parameters to mark-recapture data collected by HDAR's Opakapaka Tagging Program. 
 There are two primary implementations of this:
@@ -42,7 +44,7 @@ R notebooks handle relative paths weird when knitting, prior to running this fil
 After this is completed, script/notebook files should run their respective analyses.
 
 
-Author(s)
+Code Author(s)
 Stephen Scherrer
 
 License

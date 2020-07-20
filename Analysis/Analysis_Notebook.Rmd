@@ -1,0 +1,1375 @@
+---
+title: Comparing Age and Growth Increments from Bayesian and integrative data approaches
+  for the deepwater snapper Pristipomoides filamentosus in the Hawaiian Islands
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+## To Do - Bootstrap model 11 - Some error about pseudo_data not found...
+  ## Rerun Model 1 with changes to linf_tau and k_tau
+
+
+This Notebook contains code to run analysis and produce plots associated with the manuscript "Comparing Age and Growth Increments from Bayesian and integrative data approaches for the deepwater snapper Pristipomoides filamentosus in the Hawaiian Islands"
+
+## Workspace Setup
+### Clearing R enviornment
+```{r}
+## Clearing R enviornment
+rm(list = ls())
+gc()
+
+## Establishing Directory Heirarchy
+proj_dir = getwd() 
+proj_dir = "/Volumes/GoogleDrive/My Drive/Weng Lab/Personal_Folders/Steve/dissertation work/Ch 4. Opakapaka Growth/Analysis"
+data_dir = file.path(proj_dir, 'data')
+src_dir = file.path(proj_dir, 'src')
+results_dir = file.path(proj_dir, 'results')
+run_results_dir = results_dir
+
+set.seed(42)
+```
+
+### Importing Packages and Dependencies
+```{r include=FALSE}
+## Source function scripts provided by Lasslett et al.
+source(file.path(src_dir, "Laslett Functions/joint_lkhd.r"))
+source(file.path(src_dir, "Laslett Functions/growth_functions.r"))
+source(file.path(src_dir, "Laslett Functions/tag_lkhd.r"))
+source(file.path(src_dir, "Age and Growth Utility Functions.R")) # Modifications to laslett functions
+
+## Loading Package Dependencies
+required_packages = c('notifyR', 
+                      'doParallel', 
+                      'beepr', 
+                      'mixtools', 
+                      'R2jags', 
+                      'lattice', 
+                      'coda', 
+                      'ggplot2', 
+                      'gridExtra',
+                      'forcats')
+
+## Installing packages
+# install.packages(required_packages)
+
+## Loading packages
+for (package in required_packages){library(package, character.only = TRUE)}
+
+## Assigning cores for parallel processing
+registerDoParallel(cores = detectCores()-1)
+```
+
+### Loading saved workspace
+After this script concludes, an workspace image will be saved so results can be accessed without re-running growth models. If this workspace already exists, we'll load it in now. 
+```{r}
+if(file.exists(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))){
+  load(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+}
+```
+
+User Defined Variables
+```{r}
+min_time_at_lib = 60 # days
+```
+
+## Bayesian Analysis (Models I - IV)
+The following section uses JAGS to fit bayesian models under different constraints using the OTP data only.
+
+### Importing and preprocessing OTP Data
+```{r}
+otp_data = load_okomoto_data()
+``` 
+
+### Formatting Data for Bayesian Modeling 
+The next sections create an list object named "data" consisting of the following objects:
+
+L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
+dt: A matrix of delta t (years) corrosponding to time between capture events. 
+n: A vector where values represent the number of valid recaptures for individuals
+N: A numeric variable corrosponding to the number of unique fish in our dataset
+
+```{r}
+### L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
+L = cbind(
+  otp_data$fork_length, 
+  otp_data$recapture_1_fork_length, 
+  otp_data$recapture_2_fork_length, 
+  otp_data$recapture_3_fork_length, 
+  otp_data$recapture_4_fork_length
+  )
+
+### dt: A matrix of delta t (years) corrosponding to time between capture events. Column 1 is a dummy column that will be removed before data is wrapped in a list
+dt = cbind(
+  rep(9999, length(otp_data$recapture_1_date)), 
+  difftime(otp_data$recapture_1_date, otp_data$tag_date, unit = 'days') / 365,
+  difftime(otp_data$recapture_2_date, otp_data$tag_date, unit = 'days') / 365,
+  difftime(otp_data$recapture_3_date, otp_data$tag_date, unit = 'days') / 365,
+  difftime(otp_data$recapture_4_date, otp_data$tag_date, unit = 'days') / 365
+  )
+
+### Ommitting data when the time at liberty is less than our defined minimum period
+L[dt < min_time_at_lib / 365] = NA
+dt[dt < min_time_at_lib / 365] = NA
+
+### Removing any data from fish without a valid recapture event.
+rm_ind = c()
+## Loop through each individual
+for(i in 1:nrow(L)){
+  ## Flag individuals with less than 2 valid recaptures (number of NA values present is greater than 1)
+  if(length(which(!is.na(L[i, ]))) < 2){
+    rm_ind = c(rm_ind, i)
+  } else if(length(which(!is.na(dt[i, ]))) < 2){
+    rm_ind = c(rm_ind, i)
+  }
+}
+## Remove data flagged for removal
+L = L[-rm_ind, ]; dt = dt[-rm_ind, ]
+
+### Left justifying matricies dt and L
+## Loop through each individual
+for(i in 1:nrow(L)){
+  ## If they have any NA values (total captures < 5)
+  if(any(is.na(L[i, ]))){
+    ## For as long as there is an NA value with a numeric right ajacent
+    while(min(which(is.na(dt[i, ]))) < max(which(!is.na(dt[i, ])))){
+      # remove NA value and shift subsequent values over. Append NA to end to maintain matrix dimensions
+      dt[i, ] = c(
+        dt[i, 1:min(which(is.na(L[i, ])))-1], 
+        dt[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], 
+        NA)
+      
+      L[i, ] = c(
+        L[i, 1:min(which(is.na(L[i, ])))-1], 
+        L[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], 
+        NA)
+    }
+  }
+}
+
+## dt still has a column on the right that is full of temporary values. Here they're removed
+dt = dt[ ,-1]
+
+## Ommitting data when the time at liberty is less than our defined minimum period
+L[dt < min_time_at_lib / 365] = NA
+dt[dt < min_time_at_lib / 365] = NA
+
+#### Getting values of n, a vector where values represent the number of valid recaptures for individuals
+n = rep(0, nrow(dt))
+for(i in 1:length(n)){
+  n[i] = length(L[i, ]) - length(which(is.na(L[i, ])))
+}
+
+#### Wrapping all our data into a list for our model
+data = list(n = n, L = L, dt = dt, N = length(n))
+
+## Print number of rows in L. Should be 387
+dim(L)[1] == 387
+```
+
+## Specifying Bayesian Models
+In this chunk, we define 4 models that differ in the way they that they treat VBGF parameters Linf and K. 
+
+Model 1: L infinity (Linf) and k will be allowed to vary between individuals. No Fixed Effects
+Model 2: Linf is allowed to vary between individuals. K is fixed
+Model 3: k is allowed to vary. Linf is fixed 
+Model 4: Linf and k are fixed. 
+
+Note that some parameters in models 2 and 4 have been truncated to avoid upsetting the MCMC slicing algorthm 
+
+### Models With Priors
+```{r}
+## Defining model 1
+cat(
+  '# Model 1
+model{   										 
+	for (i in 1:N)	 {
+	# for (j in 2:n[i])	{
+		for (j in n[i])	{
+   			L[i, j] ~ dnorm(L_Exp[i, j], tau)   
+            L_Exp[i, j] <-  Linf[i] *(1.0 - exp(-k[i]*(A[i]+dt[i, j -1])))
+            # posterior prediction
+            L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+            p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+        }
+        L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+        L_Exp[i, 1] <-   Linf[i] *(1.0 - exp(-k[i]*A[i]))   
+
+        # posterior prediction
+        L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+        p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+
+        Linf[i] ~ dnorm(Linf_mu,  Linf_tau)     
+        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+        A[i] ~ dgamma(Shape, rate)
+    }
+    Linf_std <- sqrt(1/Linf_tau)
+    k_std <- sqrt(1/k_tau)
+    variance <- 1/tau
+    Linf_mu ~ dnorm(67.5, 0.0001)
+	  Linf_tau ~ dgamma(0.01, 0.0001)
+    Shape ~ dunif(0, 100)
+    rate ~ dunif(0, 100)
+	  k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	  k_tau ~ dgamma(01, 0.0001) 
+    tau ~ dgamma(0.001, 0.0001)
+}', 
+file = file.path(src_dir, "VBGF JAGS Model 1 - No Tau Prior.txt")
+)
+
+## Defining model 2
+cat(
+  '# Model 2
+model{   										 
+	for (i in 1:N)	 {
+		# for (j in 2:n[i])	{
+		for (j in n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf[i] *(1.0 - exp(-k*(A[i]+dt[i, j -1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf[i] *(1.0 - exp(-k*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		Linf[i] ~ dnorm(Linf_mu,  Linf_tau)		
+		A[i] ~ dgamma(Shape, rate)
+	}
+Linf_std <- sqrt(1/Linf_tau)
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	k ~ dnorm(k_mu, k_tau) 
+  Linf_mu ~ dnorm(67.5, 0.0001)
+	Linf_tau ~ dgamma(0.01, 0.0001)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(01, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
+
+}
+	', 
+file = file.path(src_dir, "VBGF JAGS Model 2 - No Tau Prior.txt")
+)
+
+## Defining model 3
+cat('
+  # Model 3
+model{   										 
+	for (i in 1:N)	 {
+	# for (j in 2:n[i])	{
+		for (j in n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf*(1.0 - exp(-k[i]*(A[i]+dt[i, j -1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k[i]*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+		A[i] ~ dgamma(Shape, rate)
+	}
+	Linf_std <- sqrt(1/Linf_tau)
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+  Linf_mu ~ dnorm(67.5, 0.0001)
+	Linf_tau ~ dgamma(0.01, 0.0001)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 1000)
+	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(01, 0.0001) 
+	tau ~ dgamma(0.01, 0.0001)
+}', 
+file = file.path(src_dir, "VBGF JAGS Model 3 - No Tau Prior.txt")
+)
+
+## Defining model 4
+cat(
+  '# Model 4
+model{   										 
+	for (i in 1:N)	 {
+		# for (j in 2:n[i])	{
+		for (j in n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf*(1.0 - exp(-k*(A[i]+dt[i, j-1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+	# Predicting length at capture
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		A[i] ~ dgamma(Shape, rate)
+	}
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	k ~ dnorm(k_mu, k_tau) 
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+  Linf_mu ~ dnorm(67.5, 0.0001)
+	Linf_tau ~ dgamma(0.01, 0.0001)
+	Linf_std <- sqrt(1/Linf_tau)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(01, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
+}
+', 
+file = file.path(src_dir, "VBGF JAGS Model 4 - No Tau Prior.txt")
+)
+```
+
+### Initializing MCMC Chains
+Here we'll define inits, a list of initial starting points for our optimizer. inits is a list containing a set of lists corrosponding to each chain we'll run in our optimizer. For this analyis there will be 3 chains. The first we'll set using some reasonable estimates from our maximum likelihood work, the remaining 2 will use values 2X larger and smaller than the first chain. 
+
+```{r}
+## Initial values for each chain are stored in 3 lists with elements corrosponding to all variables to be initialized
+inits1 = list('Linf_mu' = 67.5,   'k_mu' = 0.242)
+inits2 = list('Linf_mu' = 67.5*2, 'k_mu' = 0.242*2)
+inits3 = list('Linf_mu' = 67.5/2, 'k_mu' = 0.242/2)
+## Creating a single list that contains the lists corrosponding to each chain's initial values
+inits = list(inits1, inits2, inits3)
+
+## Chain parameters
+# The number of samples in the posterior distribution = (n_iterations - n_burnin) / n_thin 
+n_iterations = 2000000 # How many total iterations to run
+n_burnin = 150000 # How many iterations to run during the model's burn in phase 
+n_thin = 50 # Retain one in n_thin samples from the posterior distribution. 
+```
+
+### Running Bayesian Models With Priors
+```{r}
+## Model 1: Linf and K vary between individuals
+model_1 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - No Tau Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+## Model 2: Linf varies between individuals, K is fixed
+model_2 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - No Tau Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+## Model 3: K varies between individuals, Linf is fixed
+model_3 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - No Tau Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+## Model 4: Linf and K are fixed
+model_4 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - No Tau Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
+
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+```
+
+### Running Bayesian Models again without priors
+```{r}
+## Model 1: Linf and K vary between individuals
+model_1 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 2: Linf varies between individuals, K is fixed
+model_2 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 3: K varies between individuals, Linf is fixed
+model_3 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 4: Linf and K are fixed
+model_4 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
+```
+
+## Model Diagnostics
+Producing diagnostic plots and checking convergence for each of our 4 growth models, 
+```{r}
+##### Model Diagnostics
+for(i in 1:length(growth_models)){
+  # readline(paste('Press Enter to View Diagnostics for', names(growth_models)[i]))
+  model = growth_models[[i]]
+  print(paste("Diagnostic plots for", names(growth_models)[i]))
+  
+  ## Write out model summary table
+  write.csv(model$BUGSoutput[10], file.path(results_dir, paste( names(growth_models)[i], ' Parameter Summaries.csv')))
+}
+
+for(i in 1:length(growth_models)){
+  ### Summary Statistics and Parameter Estimates
+  summary(model)
+  
+  ### Generating MCMC object for analysis
+  model_mcmc = as.mcmc(model)
+  
+  par(mfrow = c(2, 4))
+  ### xy plot
+  xyplot(model_mcmc)
+  
+  ### Trace and Density Plots
+  plot(model_mcmc)
+  
+  ### Autocorrelation plots
+  autocorr.plot(model_mcmc)
+  
+  #### Other Diagnostics using CODA package
+  gelman.plot(model_mcmc)
+  geweke.diag(model_mcmc)
+  geweke.plot(model_mcmc)
+  raftery.diag(model_mcmc)
+  heidel.diag(model_mcmc)
+}
+dev.off()
+```
+
+Our diagnostic plots don't look bad and we can see that the Gelman Rubin convergene plots indicate that all models converged within the model burn-in phase. 
+
+After reviewing our diagnostic plots, we'll move on to looking at which term in our models have the most credibility. We'll do this using the coefficient of variation, equivilant to the mean divided by the standard deviation. A high coefficient of variability is indicitive of a poor parameter fit. 
+
+We assume the model 1, which allows both L and K to be fit independently for each fish is the best model. A low coefficient of variation for parameters under this model should confirm this. We'll then look at the remaining 3 models to see how variability in model terms is affected by fixing a given parameter across the population. 
+
+First we need to calculate the coefficient of variation for Linf_mu and k_mu parameters for each model. Then we'll make a plot examining the magnitude of the coefficient of variation for each model's parameters. 
+
+```{r}
+#### Extracting coefficients of variation for Linf and K paramters
+cv_df = data.frame(stringsAsFactors = F)
+for(i in 1:length(growth_models)){
+  curr_mod = growth_models[[i]]
+  cv_df = rbind(cv_df, data.frame('model' = names(growth_models)[i], 'Parameter' = 'Linf', 'cv' = curr_mod$BUGSoutput$summary["Linf_mu",'sd'] / curr_mod$BUGSoutput$summary["Linf_mu","mean"] * 100), 
+                data.frame('model' = names(growth_models)[i], 'Parameter' = 'k', 'cv' = curr_mod$BUGSoutput$summary["k_mu",'sd'] / curr_mod$BUGSoutput$summary["k_mu","mean"] * 100))
+}
+
+## Adding the source of variability for each model and term to our data frame
+cv_df$`source of individual variability` = 'Other'
+cv_df$`source of individual variability`[cv_df$model == 'model_1'] = 'Both'
+cv_df$`source of individual variability`[cv_df$model == 'model_4'] = 'Neither'
+cv_df$`source of individual variability`[cv_df$model == 'model_2' & cv_df$Parameter == 'Linf'] = 'Self'
+cv_df$`source of individual variability`[cv_df$model == 'model_3' & cv_df$Parameter == 'k'] = 'Self'
+cv_df$`source of individual variability` = as.factor(cv_df$`source of individual variability`)
+cv_df$`source of individual variability` = fct_relevel(cv_df$`source of individual variability`, c('Both', 'Self', 'Other', 'Neither'))
+```
+
+Visualizing CV
+```{r}
+### Plotting our coefficient of variation
+fig3 = ggplot(
+              data = cv_df, 
+              mapping = aes(x = `source of individual variability`, y = cv, col = Parameter)
+              ) + 
+        geom_point() + 
+        geom_line(aes(group = Parameter)) + 
+        labs(
+          x = 'Source of individual variability', 
+          y = 'Coefficient of variation (%)', 
+          fill = 'Parameter'
+          ) + 
+        theme(
+          legend.justification = c(1, 1), 
+          legend.position = c(.25, .95)
+          ) + 
+        ylim(0,100)
+
+
+## Show figure as output
+  print(fig3)
+```
+The x-axis labels indicate wether a term is fixed or not. "Both" refers to model 1 as both terms are fit independently. "Self"" and "Other" are models 2 and 3, while "neither" is model 4. We see that when both parameters are fit independently (model 1), both terms have the lowest coefficient of variation, indicating it is the model with the best fit. We see, unsuprisingly, as we make our effects fixed across the population, the deviation associated increases. 
+
+While model 1 is clearly the best performing model, when we compare parameter estimates from Models 1 and 2, we can infer the model 2, is likely credible as well.
+
+The additional Models 2-4 suggested that individual variability in both K and L_∞ was important, with perhaps variability in L_∞ being more important based upon the response of L_∞ standard deviation from the base case of Model 1 to the constrained individual variability in Model 3 and Model 4. 
+
+
+# Maximum Likelihood Integrative Models
+
+## Formatting Tagging Data for ML integrative models
+Now we want to format a table with lm (length at marking), lr (length at recapture), and dt (elapsed time)
+Note: If a fish was recaptured multiple times, there is a single entry for that individual corrosponding to the length at initial marking and the length at final recapture
+
+```{r}
+tagdat = data.frame(
+            'L1' = L[ ,1],
+            "L2" = rep(0, length(L[,1])), 
+            " "  = rep(0, length(L[,1])),  # A dummy column. This is required for matrix indexing in Laslett's utility functions
+            "dt" = rep(0, length(L[,1])),
+            "L2measurer" = rep(0, length(L[,1]))
+            )
+
+for (i in 1:nrow(tagdat)){
+  tagdat$L2[i] = L[i, max(which(!is.na(L[i, ])))]
+  tagdat$dt[i] = sum(dt[i], na.rm = T)
+}
+```
+
+## Importing Additional Data Sets - Otolith Data and Length Frequency Data
+```{r}
+#### Otolith Data (Ralston and Miyamoto 1983, DeMartini et al. 1994, Andrews et al. 2012) 
+otodat = read.csv(file.path(data_dir, "RalstonMiyamotoandDemartiniAndrews.csv"), col.names = c("age", "len", "source"))
+
+length_frequency_data = read.csv(file.path(data_dir, 'moffit and parrish pseudo lenght frequency data.csv'))
+  length_frequency_data$date = as.POSIXct(length_frequency_data$date)
+```
+
+### Decomposing length Frequency data
+Performing modal length frequency decomposition tracking maximum monthly mode fork lengths. (See Eveson 2014? for details)
+Fork lengths are related to age based on spawning time and time to recruitment
+```{r}
+lfdat = length_freq_decomp(length_frequency_data, plot = TRUE, fixed_modes = TRUE)
+```
+
+
+#### Fitting Preliminary Models
+Using the methods of Laslett et al, fit separate models to tagging data, length-age data, and length frequency data
+
+```{r}
+#### Initializing global model parameters for all ML models
+growth.ssnl.f<- growthvb.f
+npf <- 1  #number of parameters passed to growth.ssnl.f (in this case k)
+npA <- 2  #number of parameters in distribution of release ages for tag model
+
+#Specifying starting parameters, as well as upper and lower bounds for parameter estimation
+##       mu.L, sig.L,  k,  mu.A, sig.A, sig.sci, sig.f, a0, sig.oto, sig.lf
+p0 <- c(  70,     1, .10,     1,   .10,      1,     0,   1,     1,     1)
+lb <- c(  40,   0.1, .05,   0.1,   .05,    0.1,     0,   0,     0,     0)
+ub <- c( 110,  15.0, .50,   1.5,   .50,   15.0,     0,   3,     3,     3)
+```
+
+```{r}
+### 1. Mark Recapture Data
+vbgf_growth_increment <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0,wt.tag=1/dim(tagdat)[1],wt.lf=0)
+model_5 = vbgf_growth_increment
+```
+
+```{r}
+### 2. Length at Age Data
+vbgf_length_age <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=1,wt.tag=0,wt.lf=0)
+```
+
+```{r}
+### 3a. Length Frequency Data
+# Some notes about replicating Results of Moffitt and Parrish 1996 - ELEFAN model they used did not estimate a0. a0 is soaking up some of the observed variability that otherwise goes to K. In the function logl.lf.f within the script file joint_lkhd.r, uncommenting the line "a0 = 0" will force this model.
+## We will use AICc to determine which model is appropriate.
+
+#### 3a. Unconstrained Fit
+p0 <- c(70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
+lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
+ub <- c(300,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,     15)
+
+vbgf_length_frequency_unconstrained <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0, wt.tag=0, wt.lf=1)
+
+#### 3b. Length Frequency Data - Linf constrained by larger linf from oto/mr data
+## Constraining Linf to a constant - In this case, maximum Linf from oto or mark recapture
+linf_constrained = 78 # Same as used by Moffitt and Parrish (1996)
+
+## Setting intial params for constrained length frequency fit
+##       mu.L, sig.L,  k, mu.A, sig.A, sig.sci, sig.f,   a0,  sig.oto, sig.lf
+p0 <- c(linf_constrained,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
+lb <- c(linf_constrained,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
+ub <- c(linf_constrained,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,     15)
+
+vbgf_length_frequency_constrained <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0, wt.tag=0, wt.lf=1)
+
+#### Is it appropriate to try to measure a0 using such limited data?
+### Lets use AICc to find out
+## AICc = 2k - 2log(L) + ((2k^2 + 2k) / (n-k-1))
+aicc_with_a0_and_sig.lf = 2*3 + 2*(40.02605) + ((2*3^2 + 2*3) / (21 - 3 - 1)) # 87.46386
+aicc_without_a0 = 2*2 + 2*(62.30009) + ((2*2^2 + 2*2) / (21 - 2 - 1)) # 129.2668
+aicc_without_sig.lf = 2*2 + 2*(359.5163) + ((2*2^2 + 2*2) / (21 - 2 - 1)) # 359.5163
+aicc_without_a0_or_sig.lf = 2*1 + 2*(7565.03) + ((2*1^2 + 2*1) / (21 - 1 - 1)) # 7565.03
+### Conclusion: Yes, definitely, because AICc with a0 and sig.lf is more than 40 units lower
+```
+
+```{r}
+### Saving best growth parameter estimates from each model to a table
+results = data.frame(stringsAsFactors = FALSE)
+  results = rbind(results, cbind('Model 5 - Mark Recapture - All Data', t(as.vector(vbgf_growth_increment$par))))
+  results = rbind(results, cbind('Length at Age', t(as.vector(vbgf_length_age$par))))
+  results = rbind(results, cbind('Length Frequency (Unconstrained)', t(as.vector(vbgf_length_frequency_unconstrained$par))))
+  results = rbind(results, cbind('Length Frequency (Constrained)', t(as.vector(vbgf_length_frequency_constrained$par))))
+```
+
+### Integrative Model Fitting
+```{r}
+### Setting intial params for Integrative Models
+##       mu.L, sig.L,  k,  mu.A, sig.A, sig.sci, sig.f, a0, sig.oto, sig.lf
+p0 <- c(  70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
+lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
+ub <- c(110,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,     15)
+
+```
+
+Fitting Integrative Models
+```{r}
+### 6. Model including all Data sources - Equal weighting to each data type
+fit.vb.equalwt.grouped <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, otodat=otodat, lfdat=lfdat, wt.oto=1/dim(otodat)[1], wt.tag=1/dim(tagdat)[1], wt.lf=1/length(lfdat$curr_month_year))
+results = rbind(results, cbind('Model 6 - All Data - Equal Weighting', t(as.vector(fit.vb.equalwt.grouped$par))))
+model_6 = fit.vb.equalwt.grouped
+
+### 7. Model including all Data sources - weighting based on number of sample size
+fit.vb.byn.grouped <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, otodat=otodat, lfdat=lfdat, wt.oto=1, wt.tag=1, wt.lf=1)
+results = rbind(results, cbind('Model 7 - All Data - Weighted by n', t(as.vector(fit.vb.byn.grouped$par))))
+model_7 = fit.vb.byn.grouped
+
+### 8. Model including all Data sources treated individually - with equal weighting
+fit.vb.equalwt.indv <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 1/dim(otodat[otodat$source == 'ralston and miyamoto', ])[1], wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
+results = rbind(results, cbind('Model 8 - Separated Data - Equal Weighting', t(as.vector(fit.vb.equalwt.indv$par))))
+model_8 = fit.vb.equalwt.indv
+
+### 9. Model including all Data sources treated individually - weighting based on number of sample size
+fit.vb.byn.indv <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1, wt.oto2= 1, wt.oto3=1, wt.oto4=1, wt.tag = 1, wt.tag2 = 0, wt.lf = 1, wt.lf2 = 0)
+results = rbind(results, cbind('Model 9 - Separated Data - Weighted by n', t(as.vector(fit.vb.byn.indv$par))))
+model_9 = fit.vb.byn.indv
+
+### 10. Model without Ralston & Miyamoto - Equal weighting (Because Brett said this was shit!)
+fit.vb.byn.indv.no.ralston <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 0, wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(tagdat)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
+results = rbind(results, cbind('Model 10 - Separated Data - Equal Weighting - No R&M', t(as.vector(fit.vb.byn.indv.no.ralston$par))))
+model_10 = fit.vb.byn.indv.no.ralston
+
+### 11. Model without Ralston & Miyamoto - weighted by n (Because Brett said this was shit!)
+fit.vb.byn.indv.no.ralston <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1, wt.oto2= 0, wt.oto3=1, wt.oto4=1, wt.tag = 1, wt.tag2 = 0, wt.lf = 1, wt.lf2 = 0)
+results = rbind(results, cbind('Model 11 - Separated Data - Weighted by n - No R&M', t(as.vector(fit.vb.byn.indv.no.ralston$par))))
+model_11 = fit.vb.byn.indv.no.ralston
+
+print(results)
+```
+
+### Comparing Model Structures to one another and to literature values
+Determining preferred model structure using a train/test split bootstrapping procedure with 2/3 of the data allocated to model training and the remaining 1/3 of the data used to calculate RMSE. 
+
+These results will be compared to existing literature values and our estimates from Models 1-4. Here these values are imported as a .csv file
+```{r}
+lit_vbgc_params = read.csv(file.path(data_dir, "Parameter Estimates.csv"), stringsAsFactors = FALSE)
+lit_vbgc_params = lit_vbgc_params[!is.na(lit_vbgc_params$Linf), ]
+colnames(lit_vbgc_params) = c('author', 'n', 'linf', 'k', 't0', 'region', 'method')
+lit_vbgc_params = lit_vbgc_params[c(1:20, 22:25), ]
+```
+
+Iterative fitting and model evaluation using RMSE
+```{r}
+n_train = round(dim(tagdat)[1] * (2/3))
+n_iterations = 10000
+
+mod_eval_results = evaluate_models(cross_validation_iterations = n_iterations)
+# print(mod_eval_results)
+```
+
+## Determining Preffered Model Structure
+This is the integrative model that performs best across all CV iterations
+```{r}
+integrative_models = mod_eval_results[ ,2:7]
+integrative_model_scores = c()
+for(i in 1:dim(integrative_models)[1]){
+  integrative_model_scores = c(integrative_model_scores, names(which.min(integrative_models[i, ])))
+}
+## Which model was most frequently the best one?
+best_integrative_model = names(which.max(table(integrative_model_scores)))
+print(best_integrative_model)
+```
+
+Visualizing between model comparison
+```{r}
+## Reshaping data to make boxplots
+mod_eval_results_lf = as.data.frame(t(mod_eval_results[ ,2:7]))
+mod_eval_results_lf$model_id = rownames(mod_eval_results_lf)
+mod_eval_results_lf = reshape(mod_eval_results_lf, varying = colnames(mod_eval_results_lf[1:n_iterations]), idvar = 'model_id', direction = "long")
+mod_eval_results_lf = mod_eval_results_lf
+
+### Visualizing Results - Boxplot
+boxplot(mod_eval_results_lf$result ~ mod_eval_results_lf$model_id, ylim = c(0, 7))
+```
+
+### Comparing Prefered integrative model to  model 5 (tagging data only)
+```{r}
+integrative_vs_std_model = mod_eval_results[c(which(colnames(mod_eval_results) == 'model 5'), which(colnames(mod_eval_results) == best_integrative_model))]
+
+overall_max_likelihood_models = c()
+for(i in 1:dim(integrative_vs_std_model)[1]){
+  overall_max_likelihood_models = c(overall_max_likelihood_models, names(which.min(integrative_vs_std_model[i, ])))
+}
+## Which model was most frequently the best one?
+best_max_likelihood_model = names(which.max(table(integrative_model_scores)))
+print(best_max_likelihood_model)
+```
+
+### Bootstrapping Model 5 and Best Model
+```{r}
+boot_iterations = 10000
+bootstrap_results = list()
+
+### We'll begin by bootstrapping Model 5 (just tagging data)
+## Specifying starting parameters, as well as upper and lower bounds for parameter estimation
+#        mu.L, sig.L,  k,  mu.A, sig.A, sig.sci, sig.f, a0, sig.oto, sig.lf
+p0 <- c(  70,     1, .10,   1.0,   .10,      1,     0,   0,    0,     0)
+lb <- c(  50,   0.1, .05,   0.1,   .05,    0.1,     0,   0,    0,     0)
+ub <- c( 110,  15.0, .50,   1.5,   .50,   15.0,     0,   0,    0,     0)
+
+### Bootstrap Model 5 (Maximum Likelihood Model with only Tagging Data)
+bootstrap_results$booted_param_ests_model5 = bootstrap_growth_params(filename = 'bootstrapped_parameter_estimates_model_5', boot_iterations = boot_iterations, wt.oto = 0, wt.lf = 0, wt.tag = 1, tagdat = tagdat)
+
+### Bootstrapping Model 11 (Prefered integrative Model)
+bootstrap_results$booted_param_ests_model11 = bootstrap_growth_params(filename = file.path(results_dir,  'bootstrapped_parameter_estimates_model_11.csv'), boot_iterations = boot_iterations, tagdat=tagdat,  otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], pseudolf=length_frequency_data, pseudolf2=NULL, wt.oto= 1, wt.oto2= 0, wt.oto3=1, wt.oto4=1, wt.tag = 1, wt.tag2 = 0, wt.lf = 1, wt.lf2 = 0)
+```
+
+### Cleaning up results summary and writing it out to a .csv
+```{r}
+colnames(results) = c('model_id', 'mu.L', 'sig.L',  'k',  'mu.A', 'sig.A', 'sig.sci', 'sig.f', 'a0', 'sig.oto', 'sig.lf')
+results$`time to 90%` = yrs_to_.9_linf(linf = as.numeric(results$mu.L), k = as.numeric(results$k), a0 = as.numeric(results$a0))
+# write.csv(results, file = file.path(run_results_dir, 'likelihood_parameter_estimates_with_full_data.csv'))
+```
+
+### Comparing best model against all prviously published parameters for the region
+```{r}
+nll_names = colnames(mod_eval_results)[1:7]
+lit_names = colnames(mod_eval_results)[8:18]
+bayes_names = colnames(mod_eval_results)[19:22]
+lit_vs_int_vs_bayes = mod_eval_results[ ,colnames(mod_eval_results) %in% c(best_integrative_model, lit_names)]
+lit_vs_int_vs_bayes_scores = c()
+for(i in 1:dim(integrative_models)[1]){
+  lit_vs_int_vs_bayes_scores = c(lit_vs_int_vs_bayes_scores, names(which.min(lit_vs_int_vs_bayes[i, ])))
+}
+best_model_lit_bayes_integrated = names(which.max(table(lit_vs_int_vs_bayes_scores)))
+
+pdf(file.path(run_results_dir, 'Barplot of lit vs. bayes vs. best integrative model.pdf'), width = 11, height = 8.5)
+par(las = 2)  
+barplot(prop.table(table(lit_vs_int_vs_bayes_scores)))
+dev.off()
+```
+
+### Quantifying convergence failure
+```{r}
+### Subsetting model structures 6-11
+
+## Determining the number of NA iterations
+na_index = c()
+for(i in 1:length(mod_eval_results[ ,1])){
+  if(any(is.na(mod_eval_results[i, 2:7]))){
+    na_index = c(na_index, i)
+  }
+}
+na_index = unique(na_index)
+### How many iterations failed to converge?
+print(paste('Iterations failing to converge: ', length(na_index), ' (', round(len(na_index) / length(mod_eval_results[ ,1]), digits = 3)*100, '%)', sep = ""))
+# nll_eval_results = nll_eval_results[-na_index, ]
+```
+
+
+```{r}
+### Determining which model performed best over all iterations
+best_models = c()
+for(i in 1:dim(nll_eval_results)[1]){
+  best_models = c(best_models, names(which.min(nll_eval_results[i, ])))
+}
+print('Best Models')
+table(best_models)
+
+### Getting stats on the best performing model
+print('Summary Stats for prefered integrated model')
+best_nll_mod = mod_eval_results[ ,best_model]
+print(paste('range:', round(range(best_nll_mod, na.rm = TRUE), 2)))
+print(paste('mean:', round(mean(best_nll_mod, na.rm = TRUE), 2)))
+print(paste('standard deviation:', round(sd(best_nll_mod, na.rm = TRUE), 2)))
+
+### Getting stats on the model based only on tagging data
+print('Summary Stats for Tagging Only Model (Model 5)')
+mod_5 = as.vector(mod_eval_results[ ,'model 5'])
+print(paste('range:', round(range(mod_5, na.rm = TRUE), 2)))
+print(paste('mean:', round(mean(mod_5[!is.na(mod_5)]), 2)))
+print(paste('standard deviation:', round(sd(mod_5[!is.na(mod_5)]), 2)))
+
+### Comparing the perfered model to the tagging data only model
+print('Comparing prefered integrative and tagging only models')
+tagging_vs_integrative_df = cbind(mod_eval_results$`model 5`, mod_eval_results[ ,best_model])
+colnames(tagging_vs_integrative_df) = c('model 5', best_model)
+
+tagging_vs_integrative = c()
+for(i in 1:length(tagging_vs_integrative_df[ ,1])){
+  tagging_vs_integrative = c(tagging_vs_integrative, colnames(tagging_vs_integrative_df)[which.min(tagging_vs_integrative_df[i, ])])
+}
+table(tagging_vs_integrative)
+
+### Summary stats on tagging and integrative models
+pred_var_diff_tvc = tagging_vs_integrative_df[ ,1] - tagging_vs_integrative_df[ ,2]
+print(paste('range in predicteve difference:', round(range(pred_var_diff_tvc, na.rm = TRUE), digits = 2)))
+print(paste('mean:', round(mean(pred_var_diff_tvc, na.rm = TRUE), 2)))
+print(paste('standard deviation:', round(sd( as.vector(pred_var_diff_tvc)[!is.na(as.vector(pred_var_diff_tvc))]), 2)))
+
+#### Getting summary stats on all literature models 
+print('Summary Statistics for Literature Models')
+lit = mod_eval_results[, 8:18]
+print(paste('range:', round(range(lit, na.rm = TRUE),2)))
+lit_vec = as.vector(lit)
+lit_vec = lit_vec[!is.na(lit_vec)]
+print(paste('mean:', round(mean(lit_vec), 2)))
+print(paste('Standard Deviation:', round(sd(lit_vec), 2)))
+
+## Comparing Literatuere, MLE, and Bayesian models
+print('Comparing Literature, MLE, and Bayesian Models')
+model_structure_selection = data.frame()
+nll_names = best_model
+lit_names = colnames(mod_eval_results)[8:18]
+bayes_names = colnames(mod_eval_results)[19:22]
+for(i in 1:length(mod_eval_results[ ,1])){
+  score_int = min(nll_names[i], na.rm = TRUE)
+  best_int = min(mod_eval_results[i,colnames(mod_eval_results) == nll_names], na.rm = TRUE)
+  score_lit = min(mod_eval_results[i,8:18], na.rm = TRUE)
+  best_lit = lit_names[which(mod_eval_results[i,8:18] == score_lit)]
+  score_bayes = min(mod_eval_results[i,19:22], na.rm = TRUE)
+  best_bayes = bayes_names[which(mod_eval_results[i,19:22] == score_bayes)]
+  best_overall = c('MLE', 'Lit', 'Bayes')[which.min(c(score_int, score_lit, score_bayes))]
+  best_mod = c(best_int, best_lit, best_bayes)[which.min(c(score_int, score_lit, score_bayes))]
+  write_line = data.frame('best_ll_mod' = best_int, 'score_ensemble' = score_int, 'best_lit_mod' = best_lit, 'score_lit' = score_lit, 'best_bayes_mod' = best_bayes, 'score_bayes' = score_bayes, 'best_model' = best_overall, 'best_mod' = best_mod)
+  model_structure_selection = rbind(model_structure_selection, write_line)
+}
+lit_eval_results_table = aggregate(model_structure_selection$best_lit_mod, by = list(model_structure_selection$best_lit_mod), FUN = length)
+best_lit_mod = lit_eval_results_table$Group.1[which.max(lit_eval_results_table$x)]
+
+### Getting summary stats on the best performing literature model
+print('Summary Stats of best performing lit mod')
+best_lit = mod_eval_results[ ,as.character(best_lit_mod)]
+print(paste('range:', round(range(best_lit, na.rm = TRUE), 2)))
+best_lit_vec = as.vector(best_lit)
+best_lit_vec = best_lit_vec[!is.na(best_lit_vec)]
+print(paste('mean:', round(mean(best_lit_vec), 2)))
+print(paste('standard deviation:', round(sd(best_lit_vec),2)))
+
+## Getting summary stats for the second best performing literature model
+print('Summary Stats of second best performing literature model')
+second_best_lit_mod = as.character(lit_eval_results_table$Group.1[order(lit_eval_results_table$x, decreasing = TRUE)[2]])
+second_best_lit = mod_eval_results[ ,as.character(second_best_lit_mod)]
+second_best_lit_vec = as.vector(second_best_lit)
+print(paste('range:', round(range(second_best_lit_vec, na.rm = TRUE), 2)))
+print(paste('mean:', round(mean(second_best_lit_vec, na.rm = TRUE), 2)))
+print(paste('standard deviation:', round(sd(second_best_lit_vec, na.rm = TRUE), 2)))
+```
+
+### Implementing some sort of sensitivity analysis
+```{r}
+## Defining Functions for Sensitivity Analysis
+predict_recapture_length = function(Lm, dt, linf = 65.95546, k = 0.2369113){
+  ## Get estimated length at recapture of a given individual using von Bertalanffy function as paramterized by Faben
+  return(Lm + (linf - Lm) * (1 - exp(-k * dt)))
+}
+
+#### THIS FUNCTION WORKS FOR MODEL 5
+generate_sensitive_data = function(linf, k){
+  ## A wrapper function for generating synthetic data form a uniform distribution for Maximum Likelihood analysis
+  tagdat$bin = floor(tagdat$L1 / 5) * 5
+  
+  sensitive_data = data.frame()
+  
+  length_bins = seq(5, max(tagdat$L1), by = 5)
+  for (bin in length_bins){
+    obs = length(tagdat$L1[tagdat$bin == bin])
+    bin_sd = sd(tagdat$L1[tagdat$bin == bin])
+    mean_dt = mean(tagdat$dt[tagdat$bin == bin])
+    
+    if(is.na(bin_sd) & bin < 25){
+      bin_sd = sd(tagdat$L1[tagdat$bin == 20])
+    }
+    
+    if(is.na(bin_sd) & bin > 50){
+      bin_sd = sd(tagdat$L1[tagdat$bin == 50])
+    }
+    
+    L1 = rnorm(200 - obs, mean = bin + 2.5, sd = 0.001)
+    dt = abs(rnorm(200 - obs, mean = mean(tagdat$dt), sd = sd(tagdat$dt)))
+    L2 = predict_recapture_length(Lm = L1, dt = dt, linf = linf, k = k)
+    sensitive_data = rbind(sensitive_data, data.frame('L1' = L1, 'L2' = L2, 'X.' = 0, 'dt' = dt, 'L2measurer' = 0))
+  }
+  
+  sensitive_data = rbind(sensitive_data, tagdat[ ,-dim(tagdat)[2]])
+  
+  sensitive_data$L2[sensitive_data$L1 > sensitive_data$L2] = sensitive_data$L1[sensitive_data$L1 > sensitive_data$L2]
+  
+  # sensitive_data$L2[sensitive_data$L2 <= sensitive_data$L1] = sensitive_data$L1[sensitive_data$L2 < sensitive_data$L1] + 0.001
+  
+  return(sensitive_data)
+}
+
+generate_sensitive_data_bayes = function(linf, k){
+  ## A wrapper function for generating synthetic data form a uniform distribution for baysian analysis
+  bayes_sensitivity_data = generate_sensitive_data(linf, k)
+
+  ## Formatting Data
+  bayesian_sensitivity_data = list(
+    n = rep(2, length(bayes_sensitivity_data$L1)), 
+    L = cbind(bayes_sensitivity_data$L1, bayes_sensitivity_data$L2), 
+    dt = cbind(bayes_sensitivity_data$dt, bayes_sensitivity_data$dt), 
+    N = length(bayes_sensitivity_data$L1))
+  
+  return(bayesian_sensitivity_data)
+}
+```
+
+## Sensitivity Analysis - Obtaining Delta L and K for Maximum Likelihood Models 5 - 11
+```{r}
+#### Sensitivity Analysis for  ML models
+
+### Model 5
+p0 <- c(  68,   5,   .20,  1.5,    .1,    2.5,  0,      -0.4,     1,      3)
+lb <- c(  60, 2.1,   .01,    -.5,   .01,    0.1,   0,     -2.5,     0.5,     0)
+ub <- c(  90,   7,    .4,      2,     5,      4,   0,    -0.01,       8,     5)
+
+## Generate Data
+uniform_data_model_5 = generate_sensitive_data('linf' = model_5$par[1], 'k' = model_5$par[3])
+  hist(uniform_data_model_5$L1)
+  hist(uniform_data_model_5$L2)
+
+## Fit model with new data
+model_5_uniform_sensitive <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=uniform_data_model_5, wt.tag = 1)
+
+### Model 6
+## Generate synthetic data
+uniform_data_model_6 = generate_sensitive_data('linf' = 77.96, 'k' = 0.122)
+
+## Fit model with synthetic data
+model_6_uniform_senstive = fit.vb.equalwt.grouped <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=uniform_data_model_6, otodat=otodat, lfdat=lfdat, wt.oto=1/dim(otodat)[1], wt.tag=1/dim(uniform_data_model_6)[1], wt.lf=1/length(lfdat$curr_month_year))
+
+### Model 7
+## Generate synthetic data
+uniform_data_model_7 = generate_sensitive_data('linf' = 64.74, 'k' = 0.262)
+
+## Fit model with synthetic data
+model_7_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, otodat=otodat, lfdat=lfdat, wt.oto=1, wt.tag= (1/length(uniform_data_model_7$L1)) * length(tagdat$L1), wt.lf=1)
+
+### Model 8
+## Generate synthetic data
+uniform_data_model_8 = generate_sensitive_data('linf' = 66.87, 'k' = 0.253)
+
+## Fit model with synthetic data
+model_8_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 1/dim(otodat[otodat$source == 'ralston and miyamoto', ])[1], wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(uniform_data_model_8)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
+
+### Model 9
+## Generate synthetic data
+uniform_data_model_9 = generate_sensitive_data('linf' = 64.74, 'k' = 0.261)
+
+## Fit model with synthetic data
+model_9_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=tagdat, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1, wt.oto2= 1, wt.oto3=1, wt.oto4=1, wt.tag = (1/length(uniform_data_model_9$L1)) * length(tagdat$L1), wt.tag2 = 0, wt.lf = 1, wt.lf2 = 0)
+
+### Model 10
+p0 <- c(  70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
+lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
+ub <- c(110,  15.0, .50,   5,   .50,   15.0,     0,   10,   15,     15)
+
+## Generate synthetic data
+uniform_data_model_10 = generate_sensitive_data('linf' = 69.34, 'k' = 0.146)
+
+## Fit model with synthetic data
+model_10_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=uniform_data_model_10, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 0, wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(uniform_data_model_10)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
+
+### Model 11
+lb <- c(  60,    1.5,   .005,  -1,   .005,    0.05,  0,       -5.0,  0.25,     0)
+ub <- c(  90,   14.0,   .800,   4,     10,       8,  1,   -0.00001,    16,    10)
+p0 <- c(  68,    5.0,    .20, 1.5,     .1,     2.5,  0.1,       -0.4,     1,     3)
+
+## Generate synthetic data
+uniform_data_model_11 = generate_sensitive_data('linf' = model_11$par[1], 'k' = model_11$par[3])
+
+## Fit model with synthetic data
+model_11_uniform_sensitive <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, control = list(iter.max = 1000),
+                                     tagdat=uniform_data_model_11, 
+                                     tagdat2 = NULL, 
+                                     otodat=otodat[otodat$source == 'demartini', ], 
+                                     otodat2=otodat[otodat$source == 'ralston and miyamoto', ], 
+                                     otodat3=otodat[otodat$source == 'andrews bomb carbon', ], 
+                                     otodat4=otodat[otodat$source == 'andrews lead radium', ], 
+                                     lfdat=lfdat, 
+                                     lfdat2=NULL, 
+                                     wt.oto = 1/length(otodat[otodat$source == 'ralston and miyamoto', 1]) * length(otodat[otodat$source == 'ralston and miyamoto', 1]), 
+                                     wt.oto2 = 0, 
+                                     wt.oto3 = 1/length(otodat[otodat$source == 'andrews bomb carbon', 1]) * length(otodat[otodat$source == 'andrews bomb carbon', 1]), 
+                                     wt.oto4 = 1/length(otodat[otodat$source == 'andrews lead radium', 1]) * length(otodat[otodat$source == 'andrews lead radium', 1]), 
+                                     wt.tag = 1/length(uniform_data_model_11$L1) * length(tagdat$L1), 
+                                     wt.tag2 = 0, 
+                                     wt.lf = 1/length(lfdat$mode.age) * length(lfdat$mode.age), 
+                                     wt.lf2 = 0)
+```
+
+
+### Sensitivity Estimates using bayesian approaches
+```{r}
+#### Sensitivity Analysis for Bayesian Model 1
+### Simulate data
+linf = growth_models$model_1$BUGSoutput$summary['Linf_mu', 'mean']
+k = growth_models$model_1$BUGSoutput$summary['k_mu', 'mean']
+bayesian_sensitivity_data_with_priors = generate_sensitive_data_bayes(linf, k)
+
+## Fitting Model
+bayesian_sensitivity_fit_model_1 = jags(bayesian_sensitivity_data_with_priors, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burn = n_burnin, n.thin = n_thin)
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+#### Sensitivity Analysis for Bayesian Model 2
+### Simulate data
+linf = growth_models$model_2$BUGSoutput$summary['Linf_mu', 'mean']
+k = growth_models$model_2$BUGSoutput$summary['k_mu', 'mean']
+bayesian_sensitivity_data_with_priors = generate_sensitive_data_bayes(linf, k)
+
+bayesian_sensitivity_fit_model_2 = jags(bayesian_sensitivity_data_without_priors, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+#### Sensitivity Analysis for Bayesian Model 3
+### Simulate data
+linf = growth_models$model_3$BUGSoutput$summary['Linf_mu', 'mean']
+k = growth_models$model_3$BUGSoutput$summary['k_mu', 'mean']
+bayesian_sensitivity_data_with_priors = generate_sensitive_data_bayes(linf, k)
+
+bayesian_sensitivity_fit_model_3 = jags(bayesian_sensitivity_data_without_priors, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+
+#### Sensitivity Analysis for Baysian Model 4 
+## Generating Uniform Data with parameter estimates from Bayesian Model without Priors
+### Simulate data
+linf = growth_models$model_4$BUGSoutput$summary['Linf_mu', 'mean']
+k = growth_models$model_4$BUGSoutput$summary['k_mu', 'mean']
+bayesian_sensitivity_data_without_priors = generate_sensitive_data_bayes(linf, k)
+
+## Fitting Model
+bayesian_sensitivity_fit_model_4 = jags(bayesian_sensitivity_data_without_priors, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+```
+
+### Tabulate sensitivity Results
+```{r}
+{
+sensitivity_estimates =  data.frame(
+                                'model' = 'Model 5', 
+                                'linf_original' = model_5$par[1], 
+                                'k_original' = model_5$par[3], 
+                                'linf_sensitivity' = model_5_uniform_sensitive$par[1],
+                                'k_sensitivity' = model_5_uniform_sensitive$par[3]
+                                )
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 6', 
+                                'linf_original' = 77.96, 
+                                'k_original' = 0.122, 
+                                'linf_sensitivity' = model_6_uniform_senstive$par[1],
+                                'k_sensitivity' = model_6_uniform_senstive$par[3]
+                                ))
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 7', 
+                                'linf_original' = 64.74, 
+                                'k_original' = 0.262, 
+                                'linf_sensitivity' = model_7_uniform_sensitive$par[1],
+                                'k_sensitivity' = model_7_uniform_sensitive$par[3]
+                                ))
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 8', 
+                                'linf_original' = 66.89, 
+                                'k_original' = 0.253, 
+                                'linf_sensitivity' = model_5_uniform_sensitive$par[1],
+                                'k_sensitivity' = model_5_uniform_sensitive$par[3]
+                                ))
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 9', 
+                                'linf_original' = 64.74, 
+                                'k_original' = 0.261, 
+                                'linf_sensitivity' = model_5_uniform_sensitive$par[1],
+                                'k_sensitivity' = model_5_uniform_sensitive$par[3]
+                                ))
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 10', 
+                                'linf_original' = 69.34, 
+                                'k_original' = 0.146, 
+                                'linf_sensitivity' = model_5_uniform_sensitive$par[1],
+                                'k_sensitivity' = model_5_uniform_sensitive$par[3]
+                                ))
+
+sensitivity_estimates = rbind(sensitivity_estimates, 
+                              data.frame(
+                                'model' = 'Model 11',
+                                'linf_original' = model_11$par[1], 
+                                'k_original' = model_11$par[3], 
+                                'linf_sensitivity' = model_11_uniform_sensitive$par[1], 
+                                'k_sensitivity' = model_11_uniform_sensitive$par[3]
+                                ))
+
+
+sensitivity_estimates = rbind(
+  sensitivity_estimates, 
+  data.frame(
+    'model' = 'Bayesian Model 1 (with Priors)', 
+  'linf_original' = growth_models$model_1$BUGSoutput$summary['Linf_mu', 'mean'], 'k_original' = growth_models$model_1$BUGSoutput$summary['k_mu', 'mean'],
+    'linf_sensitivity' = bayesian_sensitivity_fit_model_1$BUGSoutput$summary['Linf_mu', 'mean'],
+    'k_sensitivity' = bayesian_sensitivity_fit_model_1$BUGSoutput$summary['k_mu', 'mean']
+    )
+  )
+
+sensitivity_estimates = rbind(
+  sensitivity_estimates, 
+  data.frame(
+    'model' = 'Bayesian Model 2 (with Priors)', 
+  'linf_original' = growth_models$model_2$BUGSoutput$summary['Linf_mu', 'mean'], 'k_original' = growth_models$model_2$BUGSoutput$summary['k_mu', 'mean'],
+    'linf_sensitivity' = bayesian_sensitivity_fit_model_2$BUGSoutput$summary['Linf_mu', 'mean'],
+    'k_sensitivity' = bayesian_sensitivity_fit_model_2$BUGSoutput$summary['k_mu', 'mean']
+    )
+  )
+
+sensitivity_estimates = rbind(
+  sensitivity_estimates, 
+  data.frame(
+    'model' = 'Bayesian Model 3 (with Priors)', 
+  'linf_original' = growth_models$model_3$BUGSoutput$summary['Linf_mu', 'mean'], 'k_original' = growth_models$model_3$BUGSoutput$summary['k_mu', 'mean'],
+    'linf_sensitivity' = bayesian_sensitivity_fit_model_3$BUGSoutput$summary['Linf_mu', 'mean'],
+    'k_sensitivity' = bayesian_sensitivity_fit_model_3$BUGSoutput$summary['k_mu', 'mean']
+    )
+  )
+
+sensitivity_estimates = rbind(
+  sensitivity_estimates, 
+  data.frame(
+    'model' = 'Bayesian Model 4 (with Priors)', 
+'linf_original' = growth_models$model_4$BUGSoutput$summary['Linf_mu', 'mean'], 'k_original' = growth_models$model_4$BUGSoutput$summary['k_mu', 'mean'], 
+    'linf_sensitivity' = bayesian_sensitivity_fit_model_4$BUGSoutput$summary['Linf_mu', 'mean'],
+    'k_sensitivity' = bayesian_sensitivity_fit_model_4$BUGSoutput$summary['k_mu', 'mean']
+    ))
+
+
+## Calculate the % difference between linf and k parameters from observed data and sensitivity analysis
+sensitivity_estimates$percent_k = ((sensitivity_estimates$k_sensitivity - sensitivity_estimates$k_original) / sensitivity_estimates$k_original) * 100
+sensitivity_estimates$percent_linf = ((sensitivity_estimates$linf_sensitivity - sensitivity_estimates$linf_original) / sensitivity_estimates$linf_original) * 100
+
+## Reformat sensitivity analysis results for manuscript table
+sensitivity_estimates = sensitivity_estimates[ ,c('model', "linf_sensitivity", "linf_original", "percent_linf", "k_sensitivity", "k_original", "percent_k")]
+
+sensitivity_table = cbind(sensitivity_estimates$model, round(sensitivity_estimates[,2:ncol(sensitivity_estimates)], 2))
+colnames(sensitivity_table)[1] = 'Model'
+# print(sensitivity_table)
+
+## Export table as .csv for manuscript
+write.csv(sensitivity_table, file.path(results_dir, 'table_6_sensitivity_analysis.csv'), row.names = FALSE)
+}
+
+```
+
+#### Plotting Figures for Paper
+```{r}
+#### Figure 1: Histogram of fork length and dt
+library(ggplot2)
+blue ='#39A7D880'
+red = '#E74A4340'
+
+## Base R theme for ggplot to remove extraneous stuff
+theme_set(theme_bw())
+theme_update(text = element_text(size=12),
+panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(),
+strip.background = element_blank()
+)
+
+
+### Figure 2 - Plots of data from different studies used to model growth
+## Fig 2a - OTP data
+{
+pdf(file.path(fig_dir, 'Figure 2a: Tag recapture length histogram.pdf'), height = 6.45, width = 5.00,)
+  par(mfrow = c(2, 1))
+  # par(mfrow = c(3, 1), bg = 'black', col.axis = 'grey', col = 'grey', col.lab = 'grey', fg = 'grey')
+  ### Subfigure 1:
+    ## Plot Histogram of length at capture
+  hist(tagdat$L1, col = blue, border = 'black', xlim = c(20, 80), ylim = c(0, 200), xlab = 'Reported Fork Length (cm)', ylab = "Individuals (n)", main = NULL)
+  ## Plot Histogram of length at recpture
+  hist(tagdat$L2, col = red, border = 'black', xlim = c(20, 80), ylim = c(0, 200), xlab = 'Reported Fork Length (cm)', ylab = "Individuals (n)", main = NULL, add = T)
+  ## Add Legend to plot
+  legend('topright', c("Tagged", "Recaptured"), fill = c(blue, red))
+  
+  ### Subfigure 2: dt
+  hist(tagdat$dt, col = 'grey', border = 'black', xlim = c(0, 12), ylim = c(0, 100), xlab = 'Time at Liberty (Years)', ylab = "Individuals (n)", main = NULL, breaks = seq(0, 11, .5))
+dev.off()
+}
+
+
+### FIGURE 1b. scatter plot of otolith datasets
+oto_data_plot = ggplot(
+              data = otodat, 
+              mapping = aes(x = age, y = len, col = source)
+              ) + ylab('Fork Length (cm)') + xlab('Age (yrs)') +
+        geom_point() + scale_color_discrete(name = "Source", labels = c("Andrews et al. 2012 \n Bomb Carbon", "Andrews et al. 2012 \n Lead Radium", "Demartini et al. 1994", "Ralston and Miyamoto 1983"))
+
+print(oto_data_plot)
+
+ggsave(filename = 'Fig2b - Direct Aging Plot.pdf', oto_data_plot, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
+
+### FIGURE 2c. line plot of length frequency data
+## Load back in lf data
+length_frequency_data = read.csv(file.path(data_dir, 'moffit and parrish pseudo lenght frequency data.csv'))
+  length_frequency_data$date = as.POSIXct(length_frequency_data$date)
+lfdat = length_freq_decomp(length_frequency_data, plot = TRUE, fixed_modes = TRUE)
+
+## Order and assign cohorts
+lfdat$curr_month_year = as.POSIXct(lfdat$curr_month_year)
+lfdat = lfdat[order(lfdat$curr_month_year, lfdat$mode.len), ]
+lfdat$cohort = 0
+lfdat$cohort[c(2, 4, 6, 8)] = 1
+lfdat$cohort[c(1, 3, 5, 7, 9, 10, 11, 12, 13, 15, 17, 19, 21)] = 2
+lfdat$cohort[c(14, 16, 18, 20)] = 3
+
+## Add NULL data for missing months
+lfdat = rbind(lfdat, 
+              data.frame("mode.age" = NA, "mode.len" = NA, "mode.se" = NA, "est.n" = NA, "curr_month_year" = as.POSIXct("1989-12-01"), "cohort" = NA), 
+              data.frame("mode.age" = NA, "mode.len" = NA, "mode.se" = NA, "est.n" = NA, "curr_month_year" = as.POSIXct("1990-05-01"), "cohort" = NA), 
+              data.frame("mode.age" = NA, "mode.len" = NA, "mode.se" = NA, "est.n" = NA, "curr_month_year" = as.POSIXct("1990-07-01"), "cohort" = NA),
+              data.frame("mode.age" = NA, "mode.len" = NA, "mode.se" = NA, "est.n" = NA, "curr_month_year" = as.POSIXct("1990-12-01"), "cohort" = NA))
+
+lfdat$cohort = as.factor(lfdat$cohort)
+lfdat$my = paste(substr(strftime(lfdat$curr_month_year, '%B'), 1, 3), year(lfdat$curr_month_year))
+lfdat$month_ord = as.numeric(as.factor(lfdat$curr_month_year))
+
+
+modal_progression_fig = ggplot(data = lfdat, mapping = aes(x = month_ord, y = mode.len, col = cohort)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_color_discrete(name = "Spawning Cohort", labels = c('1988', "1989", "1990")) +  
+  xlab('') + 
+  ylab('Mode Fork Length (cm)') + 
+  scale_x_continuous(breaks = unique(lfdat$month_ord), labels = unique(lfdat$my)[order(unique(lfdat$month_ord))]) +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) + 
+  ylim(0, 20)
+print(modal_progression_fig)
+
+ggsave(filename = 'Fig2c - Modal Progression Plot.pdf', modal_progression_fig, device = 'pdf', path = results_dir, height = 5, width = 7.5)
+
+### Figure 3: Bayesian CV
+print (fig3)
+
+## Save Figure
+ggsave(filename = 'Fig3 - Coefficients of Variation.pdf', plot = fig3, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
+  
+
+### Figure 4: Comparing parameter estimations of FL at recapture to observed FL at recapture
+## Get all parameters to compare
+{
+model_params = data.frame(
+  'model' = paste('Model', 1:11), 
+  'Linf' = c(growth_models$model_1$BUGSoutput$summary['Linf_mu', 'mean'],
+             growth_models$model_2$BUGSoutput$summary['Linf_mu', 'mean'],
+             growth_models$model_3$BUGSoutput$summary['Linf_mu', 'mean'],
+             growth_models$model_4$BUGSoutput$summary['Linf_mu', 'mean'],
+             results[results$model == 'Model 5 - Mark Recapture - All Data', 'mu.L'], 
+             results[results$model == 'Model 6 - All Data - Equal Weighting', 'mu.L'], 
+             results[results$model == 'Model 7 - All Data - Weighted by n', 'mu.L'], 
+             results[results$model == 'Model 8 - Separated Data - Equal Weighting', 'mu.L'], 
+             results[results$model == 'Model 9 - Separated Data - Weighted by n', 'mu.L'], 
+             results[results$model == 'Model 10 - Separated Data - Equal Weighting - No R&M', 'mu.L'], 
+             results[results$model == 'Model 11 - Separated Data - Weighted by n - No R&M', 'mu.L']), 
+  'k' = c(growth_models$model_1$BUGSoutput$summary['k_mu', 'mean'],
+             growth_models$model_2$BUGSoutput$summary['k_mu', 'mean'],
+             growth_models$model_3$BUGSoutput$summary['k_mu', 'mean'],
+             growth_models$model_4$BUGSoutput$summary['k_mu', 'mean'],
+             results[results$model == 'Model 5 - Mark Recapture - All Data', 'k'], 
+             results[results$model == 'Model 6 - All Data - Equal Weighting', 'k'], 
+             results[results$model == 'Model 7 - All Data - Weighted by n', 'k'], 
+             results[results$model == 'Model 8 - Separated Data - Equal Weighting', 'k'], 
+             results[results$model == 'Model 9 - Separated Data - Weighted by n', 'k'], 
+             results[results$model == 'Model 10 - Separated Data - Equal Weighting - No R&M', 'k'], 
+             results[results$model == 'Model 11 - Separated Data - Weighted by n - No R&M', 'k'])
+    )
+model_params$Linf = as.numeric(model_params$Linf); model_params$k = as.numeric(model_params$k)
+
+{
+pdf(file.path(run_results_dir, 'Fig4 - Predicted vs. Observed LR with validation data.pdf'), width = 11, height = 8.5)
+  par(mfrow = c(4, 3))
+  for(i in 1:nrow(model_params)){
+    fl_recapture_predicted = predict_recapture_length(Lm = tagdat$L1, dt = tagdat$dt, linf = model_params$Linf[i], k = model_params$k[i])
+    fl_recapture_observed = tagdat$L2
+    plot(
+      x = fl_recapture_observed,
+      y = fl_recapture_predicted, 
+      xlab = 'Observed Recapture Length (cm)', 
+      ylab = 'Predicted Recapture Length (cm)', 
+      xlim = c(15, 80),
+      ylim = c(15, 80),
+      main = paste(model_params$model[i], '\n Linf = ', round(model_params$Linf[i], digits = 2),'k = ', round(model_params$Linf[i], digits = 2), sep = ""))
+    abline(1, 1, lty = 2)
+    arrows(x0 = 60, y0 = 70, x1 = 65, y1 = 70, length = 0.1, angle = 30, code = 2)
+    text(x = 45, y = 70, labels = "Line of 1:1 agreement", cex = .75)
+    # text(x = 70, y = 30, labels = paste("Variance:", round(var(x = as.numeric(fl_recapture_predicted), y = fl_recapture_observed), digits = 3)), cex = .75)
+  }
+dev.off()
+}
+}
+
+
+#### Figure 5 - New figure showing differences from sensitivity analysis
+## Subplot showing delta Linff rom sensitivity analysis
+linf_plot = ggplot(data = sensitivity_estimates, mapping = aes(x = model, y = delta_linf)) + geom_col() +     theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
+## Subplot showing delta k from sensitivity analysis
+k_plot = ggplot(data = sensitivity_estimates, mapping = aes(x = model, y = delta_k)) + geom_col() + labs(x = '')
+## Creating overplot
+fig_5 = arrangeGrob(grobs = list(linf_plot, k_plot), nrow = 2)
+plot(fig_5)
+
+## Saving plot
+ggsave('Fig5_sensitive_differences.png', fig_6, device = 'pdf', path = results_dir)
+
+```
+
+
+## Cleanup
+Saving our R environment as an image for easy future reference
+```{r}
+# save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+# load(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+```
+
+
+
+## Notes about using laslett integrative growth function
+When weight is 1/dim(data)[1] -> Cost functions are weighted equally
+When weight is 1 -> Cost functions are weighted by observations

@@ -14,7 +14,7 @@ model{
 		Linf[i] ~ dnorm(Linf_mu,  Linf_tau)		
 		A[i] ~ dgamma(Shape, rate)
 	}
-Linf_std <- sqrt(1/Linf_tau)
+	Linf_std <- sqrt(1/Linf_tau)
 	k_std <- sqrt(1/k_tau)
 	variance <- 1/tau
 	k ~ dnorm(k_mu, k_tau) 
@@ -25,6 +25,5 @@ Linf_std <- sqrt(1/Linf_tau)
 	k_mu ~ dbeta(1, 1)  T(0.01,0.9)
 	k_tau ~ dgamma(0.001 + 0.01, 0.0001) 
 	tau ~ dgamma(0.001, 0.0001)
-
 }
 	

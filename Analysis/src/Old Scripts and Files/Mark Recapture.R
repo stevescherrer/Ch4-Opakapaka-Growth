@@ -81,36 +81,36 @@ library('bbmle') # MLE()
     mark_recapture_data$recapture_3_fork_length_cm = as.numeric(mark_recapture_data$recapture_3_fork_length_in) * in_to_cm
     mark_recapture_data$recapture_4_fork_length_cm = as.numeric(mark_recapture_data$recapture_4_fork_length_in) * in_to_cm
 
-  ### Subsetting out only Obonefishbonefish with tag IDs - That is, fish that were marked
+  ### Subsetting out only Opakapaka with tag IDs - That is, fish that were marked
   mark_recapture_data = mark_recapture_data[mark_recapture_data$species == '1' & mark_recapture_data$tag_id != '', ]
-    dim(mark_recapture_data)[1] # This gets you to the previously published 4179 tagged bonefish number from Kobayashi, Okamoto, & Oishi . for some reason doesn't exclude fish marked 'died'
+    dim(mark_recapture_data)[1] # This gets you to the previously published 4179 tagged paka number from Kobayashi, Okamoto, & Oishi . for some reason doesn't exclude fish marked 'died'
 
 #### Now we want to format a table with lm (length at marking), lr (length at recapture), and dt (elapsed time)
  ### Note: If a fish was recaptured multiple times, there is a single entry for that individual corrosponding to the length at initial marking and the length at final recapture
-    bonefish_growth = data.frame(stringsAsFactors = FALSE)
+    paka_growth = data.frame(stringsAsFactors = FALSE)
     for(i in 1:length(mark_recapture_data$tag_id)){
       if(!is.na(mark_recapture_data$recapture_4_fork_length_cm[i])){
-        bonefish_growth = rbind(bonefish_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_4_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_4_date[i], 'n_recaptures' = 4, stringsAsFactors = FALSE))
+        paka_growth = rbind(paka_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_4_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_4_date[i], 'n_recaptures' = 4, stringsAsFactors = FALSE))
       }else if(!is.na(mark_recapture_data$recapture_3_fork_length_cm[i])){
-        bonefish_growth = rbind(bonefish_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_3_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_3_date[i], 'n_recaptures' = 3, stringsAsFactors = FALSE))
+        paka_growth = rbind(paka_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_3_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_3_date[i], 'n_recaptures' = 3, stringsAsFactors = FALSE))
       }else if(!is.na(mark_recapture_data$recapture_2_fork_length_cm[i])){
-        bonefish_growth = rbind(bonefish_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_2_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_2_date[i], 'n_recaptures' = 2, stringsAsFactors = FALSE))
+        paka_growth = rbind(paka_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_2_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_2_date[i], 'n_recaptures' = 2, stringsAsFactors = FALSE))
       }else if(!is.na(mark_recapture_data$recapture_1_fork_length_cm[i])){
-        bonefish_growth = rbind(bonefish_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_1_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_1_date[i], 'n_recaptures' = 1, stringsAsFactors = FALSE))
+        paka_growth = rbind(paka_growth, data.frame('tag_id' = mark_recapture_data$tag_id[i], 'Lm' = mark_recapture_data$fork_length_cm[i], 'Lr' = mark_recapture_data$recapture_1_fork_length_cm[i], 'tm' = mark_recapture_data$tag_date[i], 'tr' = mark_recapture_data$recapture_1_date[i], 'n_recaptures' = 1, stringsAsFactors = FALSE))
       }
     }
-    bonefish_growth$dt = abs(difftime(bonefish_growth$tm, bonefish_growth$tr, units = "days"))    ## Converting dt from days to years
-    bonefish_growth$dt = as.numeric(bonefish_growth$dt) / 365 # Converting to years
+    paka_growth$dt = abs(difftime(paka_growth$tm, paka_growth$tr, units = "days"))    ## Converting dt from days to years
+    paka_growth$dt = as.numeric(paka_growth$dt) / 365 # Converting to years
     ### Constructing derived variable dl (change in growth)
-    bonefish_growth$dL = bonefish_growth$Lr - bonefish_growth$Lm
+    paka_growth$dL = paka_growth$Lr - paka_growth$Lm
     ### Removing any fish that have a NA value for dL or dt (There is a single fish which had no tagging length and 7 fish with no recapture dates)
-    bonefish_growth = bonefish_growth[!is.na(bonefish_growth$dL) & !is.na(bonefish_growth$dt), ]
+    paka_growth = paka_growth[!is.na(paka_growth$dL) & !is.na(paka_growth$dt), ]
     
   #### Creating a subset data frame that removes recording errors in length and time
-    bonefish_growth = subset(bonefish_growth, dL >= 0)
-    bonefish_growth = subset(bonefish_growth, dt >= 60/365)
+    paka_growth = subset(paka_growth, dL >= 0)
+    paka_growth = subset(paka_growth, dt >= 60/365)
     
-    bonefish_growth$aproximate_rate = bonefish_growth$dL/bonefish_growth$dt
+    paka_growth$aproximate_rate = paka_growth$dL/paka_growth$dt
     
     
 ##### Functions #####
@@ -138,14 +138,14 @@ library('bbmle') # MLE()
     params = data.frame(stringsAsFactors = FALSE)
  #### 1. Fitting a growth curve to tagging data using the traditional Faben method
   ### Selecting intial starting parameters
-    l_inf_init = max(bonefish_growth$Lr)
-    k_init = mean(bonefish_growth$dL / bonefish_growth$dt)
+    l_inf_init = max(paka_growth$Lr)
+    k_init = mean(paka_growth$dL / paka_growth$dt)
     t0_init = 0
 
     ### Fitting Faben's growth function to data using non-linear least squares method
     Fabens.sv = list(Linf = l_inf_init, K = k_init)
     fvb = vbFuns("Fabens")
-    FVB1 = nls(Lr ~ fvb(Lm, dt, Linf, K), start = Fabens.sv, data = bonefish_growth)
+    FVB1 = nls(Lr ~ fvb(Lm, dt, Linf, K), start = Fabens.sv, data = paka_growth)
     summary(FVB1)
     # Parameters:
     #   Estimate Std. Error t value Pr(>|t|)    
@@ -157,18 +157,18 @@ library('bbmle') # MLE()
     # Residual standard error: 3.505 on 430 degrees of freedom
     params = rbind(params, data.frame('method' = 'Faben', 'K' = coefficients(FVB1)['K'], 'Linf' = coefficients(FVB1)['Linf']))
     
-    bonefish_growth$Lr_predicted = predict_recapture_length(Lm = bonefish_growth$Lm, dt = bonefish_growth$dt, linf = coef(FVB1)[1], k = coef(FVB1)[2])
-    bonefish_growth$dl_pred = bonefish_growth$Lr_predicted - bonefish_growth$Lm
-    bonefish_growth$sigma = sum(sqrt((bonefish_growth$dl_pred - bonefish_growth$dL)^2))/n
+    paka_growth$Lr_predicted = predict_recapture_length(Lm = paka_growth$Lm, dt = paka_growth$dt, linf = coef(FVB1)[1], k = coef(FVB1)[2])
+    paka_growth$dl_pred = paka_growth$Lr_predicted - paka_growth$Lm
+    paka_growth$sigma = sum(sqrt((paka_growth$dl_pred - paka_growth$dL)^2))/n
     
-    length(which(bonefish_growth$Lr >= bonefish_growth$Lr_predicted - bonefish_growth$sigma & bonefish_growth$Lr <= bonefish_growth$Lr_predicted + bonefish_growth$sigma))
+    length(which(paka_growth$Lr >= paka_growth$Lr_predicted - paka_growth$sigma & paka_growth$Lr <= paka_growth$Lr_predicted + paka_growth$sigma))
     # 249
     
     
   #### 2. Model fitting by least squares - The way we did with Haddon back in MBIO 610
     ### This could totally be Francis... check it out..
     
-    francis_mod = nls((dL ~ (l.inf - Lm) * (1-exp((-K * dt)))), data = bonefish_growth, 
+    francis_mod = nls((dL ~ (l.inf - Lm) * (1-exp((-K * dt)))), data = paka_growth, 
                        start = list(K = k_init, l.inf = l_inf_init))
     summary(francis_mod)
     # Parameters:
@@ -193,13 +193,13 @@ library('bbmle') # MLE()
     pdf(file.path(results_dir, 'francis_mod_residuals.pdf'))
     par(mfrow = c(2,1))
     ## Plot residuals vs length at release
-    plot(nlsResiduals(francis_mod)$resi1[,2] ~ bonefish_growth$Lm, pch = 19, cex = .5, 
+    plot(nlsResiduals(francis_mod)$resi1[,2] ~ paka_growth$Lm, pch = 19, cex = .5, 
          main = "Residuals vs. FL at Release",
          xlab = 'Length at Release (cm)',
          ylab = 'Residuals')
     
     ## plot std residuals vs. length at release
-    plot(nlsResiduals(francis_mod)$resi2[,2] ~ bonefish_growth$Lm, pch = 19, cex = .5, 
+    plot(nlsResiduals(francis_mod)$resi2[,2] ~ paka_growth$Lm, pch = 19, cex = .5, 
          main = "Standardized Residuals vs. FL at Release",
          xlab = 'Length at Release (cm)',
          ylab = 'Standardized Residuals')
@@ -208,7 +208,7 @@ library('bbmle') # MLE()
   #### 3. Fitting using Wang Method #1 (Wang 1998)
     wvb1 = vbFuns("Wang")
     Wang1.sv = list(Linf = l_inf_init, K = k_init, b = 0)
-    WVB1 = nls(dL ~ wvb1(Lm, dt, Linf, K, b), start = Wang1.sv, data = bonefish_growth)
+    WVB1 = nls(dL ~ wvb1(Lm, dt, Linf, K, b), start = Wang1.sv, data = paka_growth)
     summary(WVB1)
     
     # Parameters:
@@ -227,7 +227,7 @@ library('bbmle') # MLE()
   #### 4. Fitting using Wang Method #2 (Wang 1998)
     wvb2 = vbFuns("Wang2")
     Wang2.sv = list(K = k_init, a = 200, d = 1)
-    WVB2 = nls(dL ~ wvb2(Lm, dt, K, a, d), start = Wang2.sv, data = bonefish_growth)
+    WVB2 = nls(dL ~ wvb2(Lm, dt, K, a, d), start = Wang2.sv, data = paka_growth)
     summary(WVB2)
 
     # Parameters:
@@ -244,20 +244,20 @@ library('bbmle') # MLE()
     a = coefficients(WVB2)['a']
     d = coefficients(WVB2)['d']
     K = coefficients(WVB2)['K']
-    X = bonefish_growth$Lm
+    X = paka_growth$Lm
 
     
 ###### The Rest of This Shit Was Shamelessly stolen from E. Franklin 2017 
 
 
   #### 5. EF: MLE constant variance
-    ## Note: Constraining bonefish growth with aprox growth rates > 6 seems to fix fitting issues?
-     # bonefish_growth = bonefish_growth[bonefish_growth$aproximate_rate > 6, ]
+    ## Note: Constraining paka growth with aprox growth rates > 6 seems to fix fitting issues?
+     # paka_growth = paka_growth[paka_growth$aproximate_rate > 6, ]
 
-    n = dim(bonefish_growth)[1]
-    Lm = bonefish_growth$Lm
-    dt = bonefish_growth$dt
-    dl = bonefish_growth$dL
+    n = dim(paka_growth)[1]
+    Lm = paka_growth$Lm
+    dt = paka_growth$dt
+    dl = paka_growth$dL
     
     constant_var <- function(Linf, K){
       exp_delta_L <- (Linf - Lm) * (1 - exp(-K*dt))
@@ -324,16 +324,16 @@ library('bbmle') # MLE()
     invline_mle@coef[3] -> nu
     invl_fitted_values <- (Linf - Lm) * (1 - exp(-K*dt))
     
-    bonefish_for_gtp = bonefish_growth
-    colnames(bonefish_for_gtp) = c("tag_id", "L1", 'L2', 'T1', 'T2', 'n_recaptures', 'dt', 'dL')
-    bonefish_for_gtp$T2 = as.numeric(abs(difftime(bonefish_for_gtp$T2, min(bonefish_for_gtp$T1), units = 'days')))
-    bonefish_for_gtp$T1 = as.numeric(abs(difftime(bonefish_for_gtp$T1, min(bonefish_for_gtp$T1), units = 'days')))
+    paka_for_gtp = paka_growth
+    colnames(paka_for_gtp) = c("tag_id", "L1", 'L2', 'T1', 'T2', 'n_recaptures', 'dt', 'dL')
+    paka_for_gtp$T2 = as.numeric(abs(difftime(paka_for_gtp$T2, min(paka_for_gtp$T1), units = 'days')))
+    paka_for_gtp$T1 = as.numeric(abs(difftime(paka_for_gtp$T1, min(paka_for_gtp$T1), units = 'days')))
     
     
-    grotag(L1 = bonefish_for_gtp$L1, # Vector of length at release of tagged fish
-           L2 = bonefish_for_gtp$L2, # Vector of length at recovery of tagged fish
-           T1 = bonefish_for_gtp$T1, # Vector of julian time at release of tagged fish
-           T2 = bonefish_for_gtp$T2, # Vector of julian time at recovery of tagged fish
+    grotag(L1 = paka_for_gtp$L1, # Vector of length at release of tagged fish
+           L2 = paka_for_gtp$L2, # Vector of length at recovery of tagged fish
+           T1 = paka_for_gtp$T1, # Vector of julian time at release of tagged fish
+           T2 = paka_for_gtp$T2, # Vector of julian time at recovery of tagged fish
            alpha = 35, # Numeric value giving an arbitrary length alpha
            beta = 50, # Numeric value giving an arbitrary length beta (beta > alpha)
            design = list(nu = 1, m = 0, p = 0, sea = 0), # List specifying the design of the model to estimate. Use 1 to designate whether a parameter(s) should be estimated. Type of parameters are: nu=growth vari- ability (1 parameter), m=bias parameter of measurement error (1 parameter), p=outlier probability (1 parameter), and sea=seasonal variation (2 parameters: u and w). Model 1 of Francis is the default settings of 0 for nu, m, p and sea.
@@ -349,7 +349,7 @@ library('bbmle') # MLE()
            st.gbup = 1, # If gestimate=FALSE, user-specified upper limit for st.gb used in optimization.
            control = list(maxit = 100000000))
     
-     grotagplus(tagdata = bonefish_for_gtp, 
+     grotagplus(tagdata = paka_for_gtp, 
                alpha = 0.1,
                beta = 0.2, 
                design = list(galpha=1,gbeta=1,s=1,nu=1,m=1,p=1,u=1,w=1),
@@ -385,21 +385,21 @@ library('bbmle') # MLE()
     
 
 
-#### bonefish Summary Stats
+#### paka Summary Stats
 ## Number of fish tagged
 length(unique(mark_recapture_data$tag_id))
   # 4172
 
 ## Number of fish recaptured
-length(unique(bonefish_growth$tag_id))
+length(unique(paka_growth$tag_id))
   # 431
 
 ## percentage of recaptures
-length(unique(bonefish_growth$tag_id)) / length(unique(mark_recapture_data$tag_id))
+length(unique(paka_growth$tag_id)) / length(unique(mark_recapture_data$tag_id))
   # 0.1033078
 
 ## Number of each recaptures
-  aggregate(bonefish_growth$tag_id, by = list(bonefish_growth$n_recaptures), FUN = length)
+  aggregate(paka_growth$tag_id, by = list(paka_growth$n_recaptures), FUN = length)
  # # of Recaps  # fish
  # 1 recap        394
  # 2 recap         35
@@ -407,51 +407,51 @@ length(unique(bonefish_growth$tag_id)) / length(unique(mark_recapture_data$tag_i
  # 4 recap          2
   
 ## Range of sizes marked
-fivenum(bonefish_growth$Lm)
+fivenum(paka_growth$Lm)
   # 19.050 29.972 32.258 35.560 52.832
 
 ## Average length at marking
-mean(bonefish_growth$Lm)
+mean(paka_growth$Lm)
   # 32.8189
 
 ## SE of length at marking
-se(bonefish_growth$Lm)
+se(paka_growth$Lm)
   # 0.2436386
 
-hist(bonefish_growth$Lm, xlab = "Fork Length (cm)", main = "Length at Marking")
+hist(paka_growth$Lm, xlab = "Fork Length (cm)", main = "Length at Marking")
 
 
 ## Range of sizes recapture
-fivenum(bonefish_growth$Lr)
+fivenum(paka_growth$Lr)
   # 22.8600 36.0680 40.6400 46.8376 76.2000
-mean(bonefish_growth$Lr)
+mean(paka_growth$Lr)
   # 41.86461
-se(bonefish_growth$Lr)
+se(paka_growth$Lr)
   # 0.4291505
-hist(bonefish_growth$Lr, xlab = "Fork Length (cm)", main = "Length at Recapture")
+hist(paka_growth$Lr, xlab = "Fork Length (cm)", main = "Length at Recapture")
 
 ## Time at liberty
 ## Days at liberty
-fivenum(bonefish_growth$dt * 365)
+fivenum(paka_growth$dt * 365)
   # 1.0  168.5  394.0  812.5 3748.0 ## Note: In Days
 ## Years at liberty
-fivenum(bonefish_growth$dt)
+fivenum(paka_growth$dt)
   # 0.002739726  0.461643836  1.079452055  2.226027397 10.268493151
-mean(bonefish_growth$dt * 365)
+mean(paka_growth$dt * 365)
   # 600.125
-se(bonefish_growth$dt * 365)
+se(paka_growth$dt * 365)
   # 29.96815
 
 ## Daily growth rate
-fivenum(bonefish_growth$dL / (bonefish_growth$dt * 365))
+fivenum(paka_growth$dL / (paka_growth$dt * 365))
   # -0.38100000  0.01080014  0.01657395  0.02327096  0.50800000
-mean(bonefish_growth$dL / (bonefish_growth$dt * 365))
+mean(paka_growth$dL / (paka_growth$dt * 365))
   # 0.01719882
-se(bonefish_growth$dL / (bonefish_growth$dt * 365))
+se(paka_growth$dL / (paka_growth$dt * 365))
   # 0.001853376
 
 ## Time at Liberty vs. Growth
-plot(bonefish_growth$dL ~ bonefish_growth$dt,
+plot(paka_growth$dL ~ paka_growth$dt,
      main = "Growth vs. Time at Liberty",
      xlab = "Years",
      ylab = "dL (cm)")
@@ -460,50 +460,50 @@ plot(bonefish_growth$dL ~ bonefish_growth$dt,
 
 
 ## Negative Growth
-mean(bonefish_growth$dL[bonefish_growth$dL < 0]) 
+mean(paka_growth$dL[paka_growth$dL < 0]) 
   # -0.8212667
-se(c(bonefish_growth$dL[bonefish_growth$dL < 0], abs(bonefish_growth$dL[bonefish_growth$dL < 0])))^2
+se(c(paka_growth$dL[paka_growth$dL < 0], abs(paka_growth$dL[paka_growth$dL < 0])))^2
   # 0.03622536
-mean(bonefish_growth$dt[bonefish_growth$dL < 0] * 365) 
+mean(paka_growth$dt[paka_growth$dL < 0] * 365) 
   # 32.33333 days
-se(bonefish_growth$dt[bonefish_growth$dL < 0] * 365) 
+se(paka_growth$dt[paka_growth$dL < 0] * 365) 
   # 5.604137 days
 
 ##### Diagnosing Measurement Error #####
 
 ### Method 1: Irrespective of dt
-length(which(bonefish_growth$dL < 0))
+length(which(paka_growth$dL < 0))
   # 15
-hist(bonefish_growth$dL[bonefish_growth$dL < 0], main = "Distribution of Negative Growth Measurements", xlab = 'cm')
+hist(paka_growth$dL[paka_growth$dL < 0], main = "Distribution of Negative Growth Measurements", xlab = 'cm')
 
-fivenum(bonefish_growth$dL[bonefish_growth$dL < 0])
+fivenum(paka_growth$dL[paka_growth$dL < 0])
   # -2.540 -1.143 -0.762 -0.254 -0.254
 
-measurement_error_variance_1 = sd(c(bonefish_growth$dL[bonefish_growth$dL < 0], abs(bonefish_growth$dL[bonefish_growth$dL < 0]))) ^2
+measurement_error_variance_1 = sd(c(paka_growth$dL[paka_growth$dL < 0], abs(paka_growth$dL[paka_growth$dL < 0]))) ^2
   # 1.086761
 
 ### Plotting measurement error with time (dL ~ dT)
-plot(dL ~ dt, data = bonefish_growth[bonefish_growth$dL < 0, ], pch = 19, main = "Measurement Error With Time")
-lm.mod = lm(dL ~ dt, data = bonefish_growth[bonefish_growth$dL < 0, ])
+plot(dL ~ dt, data = paka_growth[paka_growth$dL < 0, ], pch = 19, main = "Measurement Error With Time")
+lm.mod = lm(dL ~ dt, data = paka_growth[paka_growth$dL < 0, ])
 abline(lm.mod)
 dev.off()
 
 ### Method 2: With dt
-neg_bonefish = bonefish_growth[bonefish_growth$dL < 0, ]
-neg_bonefish$dt = neg_bonefish$dt / 365 # converting back to days from years
-## Create daily estimates of bonefish growth size
+neg_paka = paka_growth[paka_growth$dL < 0, ]
+neg_paka$dt = neg_paka$dt / 365 # converting back to days from years
+## Create daily estimates of paka growth size
 growth_est = von_b_eq(t = 1:10000, t0 = 0, linf = params$Linf[params$method == 'Francis'], k = params$K[params$method == 'Francis']/365)
 neg_growth = data.frame(stringsAsFactors = FALSE)
-for(i in 1:length(neg_bonefish$dL)){
-  tag_date_index = which.min(abs(growth_est - neg_bonefish$Lm[i]))
+for(i in 1:length(neg_paka$dL)){
+  tag_date_index = which.min(abs(growth_est - neg_paka$Lm[i]))
   tagging_length = growth_est[tag_date_index]
-  est_recap_length = growth_est[tag_date_index + neg_bonefish$dt[i]]
-  recap_length_index = which.min(abs(growth_est - neg_bonefish$Lr[i]))
+  est_recap_length = growth_est[tag_date_index + neg_paka$dt[i]]
+  recap_length_index = which.min(abs(growth_est - neg_paka$Lr[i]))
   recap_length = growth_est[recap_length_index]
-  est_tag_length = growth_est[recap_length_index - neg_bonefish$dt[i]]
-  recap_error = neg_bonefish$dL[i] - (tagging_length - est_recap_length) 
-  tagging_error =  neg_bonefish$dL[i] - (recap_length - est_tag_length)
-  neg_growth = rbind(neg_growth, data.frame('tag_id' = neg_bonefish$tag_id[i], 'tagging_error' = tagging_error, 'recapture_error' = recap_error, stringsAsFactors = FALSE))
+  est_tag_length = growth_est[recap_length_index - neg_paka$dt[i]]
+  recap_error = neg_paka$dL[i] - (tagging_length - est_recap_length) 
+  tagging_error =  neg_paka$dL[i] - (recap_length - est_tag_length)
+  neg_growth = rbind(neg_growth, data.frame('tag_id' = neg_paka$tag_id[i], 'tagging_error' = tagging_error, 'recapture_error' = recap_error, stringsAsFactors = FALSE))
 }
 
 mean(c(neg_growth$tagging_error, neg_growth$recapture_error))
@@ -519,11 +519,11 @@ send_push(user = 'uGEHvA4hr37tsrCCtpSv4sUUxVuTqN', message = paste("VBGF Script 
 
 
 
-bonefish = bonefish_for_gtp
+paka = paka_for_gtp
 data(bonito)
 
 #Model 4 of Francis (1988)
-with(bonefish,
+with(paka,
      grotag(L1=L1, L2=L2, T1=T1, T2=T2,alpha=35,beta=55,
             design=list(nu=1,m=1,p=1,sea=1),
             stvalue=list(sigma=0.9,nu=0.4,m=-1,p=0,u=0.4,w=0.4),
@@ -535,23 +535,23 @@ with(bonefish,
 
 fun = vbFuns('Laslett')
 fun_starts = 
-WVB1 = nls(dL ~ wvb1(Lm, dt, Linf, K, b), start = Wang1.sv, data = bonefish_growth)
+WVB1 = nls(dL ~ wvb1(Lm, dt, Linf, K, b), start = Wang1.sv, data = paka_growth)
 Wang1.sv = list(Linf = l_inf_init, K = k_init, b = 0)
 summary(WVB1)
 
 
 #### Gulland and Holt (1959) Method
 # Calculating mean size of individuals
-# bonefish_growth = bonefish_growth[bonefish_growth$aproximate_rate > 6, ]
-mean_size = (bonefish_growth$Lr + bonefish_growth$Lm) / 2
-growth_rates = ((bonefish_growth$Lr - bonefish_growth$Lm) / (bonefish_growth$dt))
+# paka_growth = paka_growth[paka_growth$aproximate_rate > 6, ]
+mean_size = (paka_growth$Lr + paka_growth$Lm) / 2
+growth_rates = ((paka_growth$Lr - paka_growth$Lm) / (paka_growth$dt))
 
 mean_size = mean_size[-277]
 growth_rates = growth_rates[-277]
 gh_mod = lm(mean_size ~ growth_rates)
 summary(gh_mod)
 plot(mean_size ~ growth_rates, pch = 19, cex = 0.5, xlab = "growth rate (cm/year)", ylab = "mean size (cm)", main = "Gulland & Holt Growth Parameter Estimations", xlim = c(0, 100), ylim = c(0, 70))
-points(mean_size[which(bonefish_growth$aproximate_rate <= 6)] ~ growth_rates[aproximate_rate <= 6], col = 'blue')
+points(mean_size[which(paka_growth$aproximate_rate <= 6)] ~ growth_rates[aproximate_rate <= 6], col = 'blue')
 abline(gh_mod)
 xint = -1 * (coefficients(gh_mod)[1]/coefficients(gh_mod)[2])
 text(x = 40, y = max(mean_size) - 5, labels = c(paste("L infinity =", round(xint, digits = 3), "\n", 'K = ', -1*round(coefficients(gh_mod)[2], digits = 3))))
@@ -564,9 +564,9 @@ plot(gh_mod)
 
 ### Which are my outliers?
 outliers = c(276, 36, 313, 275)
-my_bad_fish = bonefish_growth[which(bonefish_growth$aproximate_rate <= 0.6), ]
+my_bad_fish = paka_growth[which(paka_growth$aproximate_rate <= 0.6), ]
 
-c(which(bonefish_growth$dL < 1.086761), c(276, 36, 313, 275))
+c(which(paka_growth$dL < 1.086761), c(276, 36, 313, 275))
 
 
 
@@ -579,15 +579,15 @@ c(which(bonefish_growth$dL < 1.086761), c(276, 36, 313, 275))
 
 #### Francis 1988 implementation of Fabens Method
   ## Using NLL approach from Haddon
-# bonefish_growth = bonefish_growth[bonefish_growth$dL != 0,]
-n = dim(bonefish_growth)[1]
-Lm = bonefish_growth$Lm
-Lr = bonefish_growth$Lr
-dt = bonefish_growth$dt
-dl = bonefish_growth$dL
+# paka_growth = paka_growth[paka_growth$dL != 0,]
+n = dim(paka_growth)[1]
+Lm = paka_growth$Lm
+Lr = paka_growth$Lr
+dt = paka_growth$dt
+dl = paka_growth$dL
 
-l_inf_init = max(bonefish_growth$Lr)
-k_init = mean(bonefish_growth$dL / bonefish_growth$dt)
+l_inf_init = max(paka_growth$Lr)
+k_init = mean(paka_growth$dL / paka_growth$dt)
 nu_init = 0.1
 tau_init = 4.1
 
@@ -613,11 +613,11 @@ summary(constant_mle)
 
 
 ## How many fish fell within sigma of the data point
-bonefish_growth$Lr_predicted = predict_recapture_length(Lm = bonefish_growth$Lm, dt = bonefish_growth$dt, linf = constant_mle@coef[1], k = constant_mle@coef[2])
-bonefish_growth$dl_pred = bonefish_growth$Lr_predicted - bonefish_growth$Lm
-bonefish_growth$sigma = sum(sqrt(((bonefish_growth$dl_pred - bonefish_growth$dL)^2)))/n
+paka_growth$Lr_predicted = predict_recapture_length(Lm = paka_growth$Lm, dt = paka_growth$dt, linf = constant_mle@coef[1], k = constant_mle@coef[2])
+paka_growth$dl_pred = paka_growth$Lr_predicted - paka_growth$Lm
+paka_growth$sigma = sum(sqrt(((paka_growth$dl_pred - paka_growth$dL)^2)))/n
 
-length(which(bonefish_growth$Lr >= bonefish_growth$Lr_predicted - bonefish_growth$sigma & bonefish_growth$Lr <= bonefish_growth$Lr_predicted + bonefish_growth$sigma)) / length(bonefish_growth$tag_id)
+length(which(paka_growth$Lr >= paka_growth$Lr_predicted - paka_growth$sigma & paka_growth$Lr <= paka_growth$Lr_predicted + paka_growth$sigma)) / length(paka_growth$tag_id)
 # 249 - 0.6484375
 
 ## Model AIC
@@ -651,11 +651,11 @@ summary(inverse_mle)
 # -2 log L: 2102.379 
 
 ## How many fish fell within the sigma of the data point
-bonefish_growth$Lr_predicted = predict_recapture_length(Lm = bonefish_growth$Lm, dt = bonefish_growth$dt, linf = inverse_mle@coef[1], k = inverse_mle@coef[2])
-bonefish_growth$dl_pred = bonefish_growth$Lr_predicted - bonefish_growth$Lm
-bonefish_growth$sigma = bonefish_growth$dl_pred * inverse_mle@coef[3]
+paka_growth$Lr_predicted = predict_recapture_length(Lm = paka_growth$Lm, dt = paka_growth$dt, linf = inverse_mle@coef[1], k = inverse_mle@coef[2])
+paka_growth$dl_pred = paka_growth$Lr_predicted - paka_growth$Lm
+paka_growth$sigma = paka_growth$dl_pred * inverse_mle@coef[3]
 
-length(which(bonefish_growth$Lr >= bonefish_growth$Lr_predicted - bonefish_growth$sigma & bonefish_growth$Lr <= bonefish_growth$Lr_predicted + bonefish_growth$sigma)) / length(bonefish_growth$tag_id)
+length(which(paka_growth$Lr >= paka_growth$Lr_predicted - paka_growth$sigma & paka_growth$Lr <= paka_growth$Lr_predicted + paka_growth$sigma)) / length(paka_growth$tag_id)
 # 302 - 0.7864583
 
 ### AIC
@@ -685,11 +685,11 @@ summary(exp_decline_mle)
 # 
 # -2 log L: 2006.085 
 
-bonefish_growth$Lr_predicted = predict_recapture_length(Lm = bonefish_growth$Lm, dt = bonefish_growth$dt, linf = exp_decline_mle@coef[1], k = exp_decline_mle@coef[2])
-bonefish_growth$dl_pred = bonefish_growth$Lr_predicted - bonefish_growth$Lm
-bonefish_growth$sigma = exp_decline_mle@coef[4] * (1 - exp(-exp_decline_mle@coef[3]  * bonefish_growth$dl_pred))
+paka_growth$Lr_predicted = predict_recapture_length(Lm = paka_growth$Lm, dt = paka_growth$dt, linf = exp_decline_mle@coef[1], k = exp_decline_mle@coef[2])
+paka_growth$dl_pred = paka_growth$Lr_predicted - paka_growth$Lm
+paka_growth$sigma = exp_decline_mle@coef[4] * (1 - exp(-exp_decline_mle@coef[3]  * paka_growth$dl_pred))
 
-length(which(bonefish_growth$Lr >= bonefish_growth$Lr_predicted - bonefish_growth$sigma & bonefish_growth$Lr <= bonefish_growth$Lr_predicted + bonefish_growth$sigma)) / length(bonefish_growth$tag_id)
+length(which(paka_growth$Lr >= paka_growth$Lr_predicted - paka_growth$sigma & paka_growth$Lr <= paka_growth$Lr_predicted + paka_growth$sigma)) / length(paka_growth$tag_id)
 # 285 - 0.7421875
 
 ## AIC 
@@ -722,11 +722,11 @@ summary(power_decline_mle)
 # -2 log L: 1977.733 
 
 
-bonefish_growth$Lr_predicted = predict_recapture_length(Lm = bonefish_growth$Lm, dt = bonefish_growth$dt, linf = power_decline_mle@coef[1], k = power_decline_mle@coef[2])
-bonefish_growth$dl_pred = bonefish_growth$Lr_predicted - bonefish_growth$Lm
-bonefish_growth$sigma = power_decline_mle@coef[3]*(bonefish_growth$dl_pred^power_decline_mle@coef[4])
+paka_growth$Lr_predicted = predict_recapture_length(Lm = paka_growth$Lm, dt = paka_growth$dt, linf = power_decline_mle@coef[1], k = power_decline_mle@coef[2])
+paka_growth$dl_pred = paka_growth$Lr_predicted - paka_growth$Lm
+paka_growth$sigma = power_decline_mle@coef[3]*(paka_growth$dl_pred^power_decline_mle@coef[4])
 
-length(which(bonefish_growth$Lr >= bonefish_growth$Lr_predicted - bonefish_growth$sigma & bonefish_growth$Lr <= bonefish_growth$Lr_predicted + bonefish_growth$sigma)) / length(bonefish_growth$tag_id)
+length(which(paka_growth$Lr >= paka_growth$Lr_predicted - paka_growth$sigma & paka_growth$Lr <= paka_growth$Lr_predicted + paka_growth$sigma)) / length(paka_growth$tag_id)
 # 278 - 0.78239583
 
 ## AIC
@@ -764,9 +764,9 @@ AIC(power_decline_mle) # 1985.733
 # yr = length recap
 # ym = length mark
 
-yr = bonefish_growth$Lr
-ym = bonefish_growth$Lm
-dt = bonefish_growth$dt
+yr = paka_growth$Lr
+ym = paka_growth$Lm
+dt = paka_growth$dt
 y2 = 72.1
 tau_2 = 45.9
 
@@ -788,9 +788,38 @@ tau1 = coef(shnute_mle)[4]
 Lr_pred = (ym^b * exp(-a*(dt)) + (y2^b - y1^b * exp(-a * (tau2 - tau1))) * (1 - exp(-a * dt))/ 1-exp(-a * (tau2 - tau1)))^(1/b)
 
 par(mfrow = c(2, 1))
-plot(Lr_pred ~ bonefish_growth$Lr, ylim = c(0, 80), xlim = c(0,80))
+plot(Lr_pred ~ paka_growth$Lr, ylim = c(0, 80), xlim = c(0,80))
 abline(1,1)
 
 
-plot((Lr_pred - bonefish_growth$Lr) ~ bonefish_growth$Lr)
+plot((Lr_pred - paka_growth$Lr) ~ paka_growth$Lr)
 abline(1,0)
+
+
+
+
+
+
+#### Bootstrap confidence interval for Francis Mod
+library(doParallel)
+registerDoParallel(cores = 8)
+
+boot_intervals = 10000
+boot_results = data.frame(stringsAsFactors = F)
+while(dim(boot_results)[1] < boot_intervals) {
+  tryCatch({
+  ## Resample with replacement paka growth
+  paka_boot = paka_growth[sample(1:dim(paka_growth)[1], dim(paka_growth)[1], replace = T), ]
+  ## Fit maximum likelihood model
+  francis_mod = nls((dL ~ (l.inf - Lm) * (1-exp((-K * dt)))), data = paka_boot, 
+                    start = list(K = k_init, l.inf = l_inf_init))
+  ## Write out parameters to data frame
+  boot_results = rbind(boot_results, data.frame('Linf' = coefficients(francis_mod)['l.inf'], 'K' = coefficients(francis_mod)['K'], stringsAsFactors = F))
+  }, error = function(e){})
+}
+
+sort(boot_results$Linf)[(.025 * boot_intervals) + 1]
+sort(boot_results$Linf)[(.975 * boot_intervals) - 1]
+
+sort(boot_results$K)[(.025 * boot_intervals) + 1]
+sort(boot_results$K)[(.975 * boot_intervals) - 1]

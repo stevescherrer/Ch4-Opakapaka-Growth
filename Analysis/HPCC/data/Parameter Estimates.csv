@@ -1,0 +1,29 @@
+﻿Source,n,Linf,K,t0,Region,Method,
+Ralston (1980),,80.5,0.16,,Hawaii - NWHI,Otoliths - Daily,15.60468747
+Ralston and Miyamoto (1983) - Constrained Linf,64 individuals,78,0.146,-1.67,Hawaii - NWHI,Otoliths - Daily,14.87203564
+Ralston and Miyamoto (1983) - Unonstrained Linf,64 individuals,66.4,0.235,-0.81,Hawaii - NWHI,Otoliths - Daily,12.74222122
+Brouard & Granperrin (2001),,60,0.3,,Vanuatu,Modal Progression,13.22547109
+Uchiyama and Tagami (1984),Not Reported,97.1,0.31,0.02,Hawaii - NWHI,Otoliths - Annual,249.7371732
+Radtke (1987),Not Reported,69.8,0.534,0.18,Hawaii - NWHI,Otoliths - Daily,93.81426177
+Ralston and Willaims (1988),10 individuals,58.4,0.29,,Mariana Archipelago,Otoliths - Daily,15.4762731
+Mees (1993) - Males,14 months,85.8,0.3,,Seychelles,Modal Progression,114.3725062
+Mees (1993) - Females,14 months,77.6,0.275,,Seychelles,Modal Progression,44.66193942
+DeMartini et al. (1994),92 individuals,70.4,0.25,-0.22,Hawaii - MHI & NWHI,Otoliths - Daily,16.3338623
+Moffit and Parrish (1996) - Constrained Linf,13 months,78,0.21,0,Hawaii - MHI,Modal Progression,22.16612955
+Hardman-Mountford et al. (1997) - Males,9 individuals,85.8,0.33,-0.16,Seychelles,Otoliths - Annual / Monthly,141.5272572
+Hardman-Mountford et al. (1997) - Females,11 individuals,77.6,0.36,-0.06,Seychelles,Otoliths - Annual / Monthly,88.11477628
+Mees and Rousseau (1997),27 months,75.8,0.24,,Seychelles,Modal Progression,25.41287799
+Pilling et al. (2000),85 individuals,62.3,0.11,,Seychelles,Otoliths - Annual / Monthly,50.56928758
+Fry et al. (2003),43 individuals,41.2,0.34,,Papua New Guinea,Otoliths - Annual,85.78917862
+Andrews et. al (2011),"133 Otoliths, 3 Pooled Length Groups",66.2,0.294,-0.16,Hawaii - MHI & NWHI,Otoliths - Radio-isotopes,15.16089575
+Andrews et. al (2012),"133 Otoliths, 3 Pooled Length Groups",67.5,0.242,-0.29,Hawaii - MHI & NWHI,Otoliths - Radio-isotopes,12.99787401
+OʻMalley (2015) - Gulland and Holt,96 indidivuals,71.55,0.15,,Hawaii - MHI,Mark Recapture - Gulland and Holt,17.93664041
+OʻMalley (2015) - Faben,96 indidivuals,57.8,0.28,,Hawaii - MHI,Mark Recapture - Francis,17.26693934
+Maximum Likelihood - Francis,384 individuals,65.92,0.24,,Hawaii - MHI,Mark Recapture - Francis,12.69738235
+Bayesian Model 1,500 individuals,59.08,0.31,,Hawaii - MHI,Mark Recapture - Zhang,13.59080339
+Bayesian Model 2,500 individuals,59.4,0.35,,Hawaii - MHI,Mark Recapture - Zhang,12.85046726
+Bayesian Model 3,500 individuals,77.88,0.16,,Hawaii - MHI,Mark Recapture - Zhang,14.44827497
+Bayesian Model 4,500 individuals,75.13,0.25,,Hawaii - MHI,Mark Recapture - Zhang,26.45675611
+Maximum Likelihood - Model 5,378 individuals,60.92,0.3,,Hawaii - MHI,Mark Recapture - Laslett et al.,12.72706962
+Maximum Likelihood - Model 8,"378 individuals (GI), 133 Otoliths, 3 Pooled Length Groups, 13 Months",64.88,0.26,-0.305,Hawaii - MHI & NWHI,Mark Recapture - Laslett et al.,12.57564121
+Maximum Likelihood - Model 9,"378 individuals (GI), 133 Otoliths, 3 Pooled Length Groups, 13 Months",66.87,0.25,-0.271,Hawaii - MHI & NWHI,Mark Recapture - Laslett et al.,12.96368598

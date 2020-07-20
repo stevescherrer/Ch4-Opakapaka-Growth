@@ -1,0 +1,464 @@
+---
+title: "Fitting growth parameters for P. filametnosus using a JAGS based bayesian framework"
+output:
+  html_document:
+    df_print: paged
+---
+As a counterpoint to our growth modeling using maximum likelihood and the modethods of Lasslett et. al (2004), here we implement a Bayesian analysis using JAGS to estimate parameters for the Von Bertalanffy Growth Function (VBGF) using Markov Chain Monte Carlo (MCMC) simulation using the methods detailed in Zhang et al. 2009.
+
+Before proceeding, we will need to install JAGS on our machine, which can be found at the following web address:
+
+http://mcmc-jags.sourceforge.net
+
+
+### Fitting VBGF Parameters for P. filametnosus using a JAGS based bayesian framework
+
+## Workspace Setup
+### Establishing Directory Heirarchy
+In the following chunk we'll create some objects that coorspond to the paths where we'll be importing our data from and exporting our results. All paths are relative to the current directory, which should be the project's main directory if this script is being run from within an R project.
+```{r}
+proj_dir = "/Volumes/GoogleDrive/My Drive/Weng Lab/Personal_Folders/Steve/dissertation work/Ch 4. Opakapaka Growth/Analysis"
+data_dir = file.path(proj_dir, "data")
+src_dir = file.path(proj_dir, 'src/Bayes')
+results_dir = file.path(proj_dir, 'results/Bayes')
+```
+
+### Installing principle dependencies
+We also need to call load in some external packages.
+```{r}
+# install.packages("R2jags")
+# install.packages("lattice")
+# install.packages("coda")
+# install.packages("ggplot2")
+
+library('R2jags') # jags()
+library('lattice') # xyplot()
+library('coda') # gelman.plot() and other MCMC diagnostic tools
+library('ggplot2') # ggplot()
+library('forcats') #fct_relevel()
+```
+
+### Loading in saved workspace
+After this script concludes, an workspace image will be saved so results can be accessed without re-running growth models. If this workspace already exists, we'll load it in now. 
+```{r}
+if(file.exists(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))){
+  load(file.path(results_dir, 'Bayes/Bayesian Workspace.RData'))
+}
+```
+
+## Loading and cleaning mark recapture data
+### Loading Mark Recapture data
+We will be fitting our models with tagging data collected by the State of Hawaii's Division of Aquatic Resources between 1989 and 1994. During this period the Opakapaka Tagging Program tagged a number of P. filamentosus and released them in the waters between the islands of Oahu and Molokai. 
+
+We begin by reading in a .csv file containing our data
+```{r}
+mark_recapture_data = read.csv(file.path(data_dir, 'HO Mstr, temp (version 1).csv'), stringsAsFactors =  FALSE)
+# print(colnames(mark_recapture_data))
+head(mark_recapture_data)
+```
+
+#### Cleaning Mark Recapture Data
+The data is currently a bit of a mess. We'll clean up our data begining with making more informative column names. We also need to transform our reported lengths from inches to centimeters and calculate a new variable, dt, corrosponding to the elapsed years between when a fish was marked and it's subsequent recaptures. Finally, we'll manipulate our data into a series of matricies, arrays, and an integer for handing to models. 
+
+But first we'll define a minimum time at liberty, the time between release and recapture, for a recapture event to be considered valid.
+The idea here is that fish shouldn't grow appreciably durring this time so any difference in length for fish recaptured during this period represent measurer error instead of real growth.
+
+At the end of all this we will have a list object named "data" consisting of the following objects:
+L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
+dt: A matrix of delta t (years) corrosponding to time between capture events. 
+n: A vector where values represent the number of valid recaptures for individuals
+N: A numeric variable corrosponding to the number of unique fish in our dataset
+
+```{r}
+### Defining minimum time at librerty
+min_time_at_lib = 60 # days
+
+### Renaming data columns
+colnames(mark_recapture_data) = c('tag_date', 'location', 'station', 'depth_f', 'species', 'previously_tagged', 'tag_id','fork_length_in', 'remarks', 'recapture_1_date', 'recapture_1_location', 'recapture_1_station', 'recapture_1_depth_f', 'recapture_1_fork_length_in', 'weight_1_lbs', 'days_1_free', 'growth_1_in', 'distance_1_miles','retagged_1',
+                                  'recapture_2_date', 'recapture_2_location', 'recapture_2_station', 'recapture_2_depth_f', 'recapture_2_fork_length_in', 'weight_2_lbs', 'days_2_free', 'growth_2_in', 'distance_2_miles', 'retagged_2',
+                                  'recapture_3_date', 'recapture_3_location', 'recapture_3_station', 'recapture_3_depth_f', 'recapture_3_fork_length_in', 'weight_3_lbs', 'days_3_free', 'growth_3_in', 'distance_3_miles', 'retagged_3',
+                                  'recapture_4_date', 'recapture_4_location', 'recapture_4_station', 'recapture_4_depth_f', 'recapture_4_fork_length_in', 'weight_4_lbs', 'days_4_free', 'growth_4_in', 'distance_4_miles', 'x_retagged')
+
+
+## How many total fish do we have in the data set?
+n_tagged_fish = dim(mark_recapture_data)[1] # 4245!
+
+### Subsetting out only Opakapaka with tag IDs - That is, fish that were marked
+mark_recapture_data = mark_recapture_data[mark_recapture_data$species == '1' & mark_recapture_data$tag_id != '', ]
+n_tagged_paka = dim(mark_recapture_data)[1] # This gets you  the previously published 4179 tagged paka number from Kobayashi, Okamoto, & Oishi . for some reason doesn't exclude fish marked 'died'
+
+#### Adusting Data Classes
+### Formatting Dates (Converting Characters to POSIXct)
+mark_recapture_data$tag_date = as.POSIXct(mark_recapture_data$tag_date, format = "%Y-%m-%d")
+mark_recapture_data$recapture_1_date = as.POSIXct(mark_recapture_data$recapture_1_date, format = "%Y-%m-%d")
+mark_recapture_data$recapture_2_date = as.POSIXct(mark_recapture_data$recapture_2_date, format = "%Y-%m-%d")
+mark_recapture_data$recapture_3_date = as.POSIXct(mark_recapture_data$recapture_3_date, format = "%Y-%m-%d")
+mark_recapture_data$recapture_4_date = as.POSIXct(mark_recapture_data$recapture_4_date, format = "%Y-%m-%d")
+
+### Formatting fork lengths
+## We need to convert our forklength measurements from inches to cm and make sure everything is a numeric value.
+## Note: There are a couple fork lengths that have ?, *, or have no lengths recorded. 
+## I have no idea what these are but they're qualifiers and so I'm going to let them go to NA and get dropped from analysis
+in_to_cm = 2.54
+mark_recapture_data$fork_length_cm = as.numeric(mark_recapture_data$fork_length_in) * in_to_cm
+mark_recapture_data$recapture_1_fork_length_cm = as.numeric(mark_recapture_data$recapture_1_fork_length_in) * in_to_cm
+mark_recapture_data$recapture_2_fork_length_cm = as.numeric(mark_recapture_data$recapture_2_fork_length_in) * in_to_cm
+mark_recapture_data$recapture_3_fork_length_cm = as.numeric(mark_recapture_data$recapture_3_fork_length_in) * in_to_cm
+mark_recapture_data$recapture_4_fork_length_cm = as.numeric(mark_recapture_data$recapture_4_fork_length_in) * in_to_cm
+
+### Removing fish that were not recaptured
+mark_recapture_data = mark_recapture_data[!is.na(mark_recapture_data$recapture_1_fork_length_cm), ]
+### This leaves us with 
+dim(mark_recapture_data)[1] # individuals
+
+#### Creating Model Data
+
+### L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
+L = cbind(mark_recapture_data$fork_length_cm, mark_recapture_data$recapture_1_fork_length_cm, mark_recapture_data$recapture_2_fork_length_cm, mark_recapture_data$recapture_3_fork_length_cm, mark_recapture_data$recapture_4_fork_length_cm)
+
+### dt: A matrix of delta t (years) corrosponding to time between capture events. Column 1 is a dummy column that will be removed before data is wrapped in a list
+dt = cbind(rep(9999, length(mark_recapture_data$recapture_1_date)), difftime(mark_recapture_data$recapture_1_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_2_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_3_date, mark_recapture_data$tag_date, unit = 'days') / 365,
+           difftime(mark_recapture_data$recapture_4_date, mark_recapture_data$tag_date, unit = 'days') / 365)
+
+### Ommitting data when the time at liberty is less than our defined minimum period
+L[dt < min_time_at_lib / 365] = NA
+dt[dt < min_time_at_lib / 365] = NA
+
+### Removing any data from fish without a valid recapture event.
+rm_ind = c()
+## Loop through each individual
+for(i in 1:nrow(L)){
+  ## Flag individuals with less than 2 valid recaptures
+  if(length(which(is.na(L[i, ]))) >= length(L[i, ]) - 1){
+    rm_ind = c(rm_ind, i)
+  } else if(length(which(is.na(dt[i, ]))) >= length(dt[i, ]) - 1){
+    rm_ind = c(rm_ind, i)
+  }
+}
+## Remove data flagged for removal
+L = L[-rm_ind, ]; dt = dt[-rm_ind, ]
+
+
+### Left justifying matricies dt and L
+## Loop through each fish
+for(i in 1:nrow(L)){
+  ## If they have any NA values (total captures < 5)
+  if(any(is.na(L[i, ]))){
+    ## For as long as there is an NA value with a numeric right ajacent
+    while(min(which(is.na(dt[i, ]))) < max(which(!is.na(dt[i, ])))){
+      ## For matricies dt and L, create a new vector without the NA index, add a new NA to the rightmost side, and replace the current line 
+      dt[i, ] = c(dt[i, 1:min(which(is.na(L[i, ])))-1], dt[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], NA)
+      L[i, ] = c(L[i, 1:min(which(is.na(L[i, ])))-1], L[i, (min(which(is.na(L[i, ])))+1):length(L[i, ])], NA)
+    }
+  }
+}
+
+
+#### dt still has a column on the right that is full of bullshit values
+### Removing the first column of dt
+dt = dt[ ,-1]
+
+#### Getting values of n, a vector where values represent the number of valid recaptures for individuals
+n = rep(0, nrow(dt))
+for(i in 1:length(n)){
+  n[i] = length(L[i, ]) - length(which(is.na(L[i, ])))
+}
+
+
+## Print number of rows in L. Should be 387
+dim(L)
+
+#### Wrapping all our data into a list for our model
+data = list(n = n, L = L, dt = dt, N = length(n))
+```
+
+## Model Specification
+### Defining models
+In this chunk, we define 4 models that differ in the way they that they treat VBGF parameters Linf and K. 
+
+In model 1, both L infinity (Linf) and k will be allowed to vary between individuals. Model 2 will treat k as a fixed effect, such that Linf is allowed to vary between individuals but K cannot. Conversely, Model 3 treats Linf as fixed while k is allowed to vary. In model 4, both Linf and k are fixed. 
+
+Note that some parameters in models 2 and 4 have been truncated to avoid upsetting the MCMC slicing algorthm 
+```{r}
+## Defining model 1
+cat(
+  '# Model 1
+model{   										 
+	for (i in 1:N)	 {
+		for (j in 2:n[i])	{
+   			L[i, j] ~ dnorm(L_Exp[i, j], tau)   
+            L_Exp[i, j] <-  Linf[i] *(1.0 - exp(-k[i]*(A[i]+dt[i, j -1])))
+            # posterior prediction
+            L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+            p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+        }
+        L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+        L_Exp[i, 1] <-   Linf[i] *(1.0 - exp(-k[i]*A[i]))   
+
+        # posterior prediction
+        L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+        p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+
+        Linf[i] ~ dnorm(Linf_mu,  Linf_tau)     
+        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+        A[i] ~ dgamma(Shape, rate)
+    }
+    Linf_std <- sqrt(1/Linf_tau)
+    k_std <- sqrt(1/k_tau)
+    variance <- 1/tau
+    Linf_mu ~ dnorm(100, 0.0001)
+    Linf_tau ~ dgamma(0.001, 0.0001)
+    Shape ~ dunif(0, 100)
+    rate ~ dunif(0, 100)
+    k_mu ~ dbeta(1, 1)
+    k_tau ~ dgamma(0.001, 0.0001)
+    tau ~ dgamma(0.001, 0.0001)
+}', 
+file = file.path(src_dir, "VBGF JAGS Model 1.txt")
+)
+
+## Defining model 2
+cat(
+  '# Model 2
+model{   										 
+	for (i in 1:N)	 {
+		for (j in 2:n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf[i] *(1.0 - exp(-k*(A[i]+dt[i, j -1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf[i] *(1.0 - exp(-k*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		Linf[i] ~ dnorm(Linf_mu,  Linf_tau)		
+		A[i] ~ dgamma(Shape, rate)
+	}
+Linf_std <- sqrt(1/Linf_tau)
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	k ~ dnorm(k_mu, k_tau) 
+	Linf_mu ~ dnorm(100, 0.0001)
+	Linf_tau ~ dgamma(0.001, 0.0001)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(1, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(0.001 + 0.01, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
+
+}
+	', 
+file = file.path(src_dir, "VBGF JAGS Model 2.txt")
+)
+
+## Defining model 3
+cat('
+  # Model 3
+model{   										 
+	for (i in 1:N)	 {
+		for (j in 2:n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf*(1.0 - exp(-k[i]*(A[i]+dt[i, j -1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k[i]*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+		A[i] ~ dgamma(Shape, rate)
+	}
+	Linf_std <- sqrt(1/Linf_tau)
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+	Linf_mu ~ dnorm(100, 0.0001)
+	Linf_tau ~ dgamma(0.01, 0.0001)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 1000)
+	k_mu ~ dbeta(1, 1)
+	k_tau ~ dgamma(0.01, 0.0001)
+	tau ~ dgamma(0.01, 0.0001)
+}', 
+file = file.path(src_dir, "VBGF JAGS Model 3.txt")
+)
+
+## Defining model 4
+cat(
+  '# Model 4
+model{   										 
+	for (i in 1:N)	 {
+		for (j in 2:n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf*(1.0 - exp(-k*(A[i]+dt[i, j-1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+	# Predicting length at capture
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		A[i] ~ dgamma(Shape, rate)
+	}
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	k ~ dnorm(k_mu, k_tau) 
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+	Linf_mu ~ dnorm(100, 0.0001)
+	Linf_tau ~ dgamma(0.001, 0.0001)
+	Linf_std <- sqrt(1/Linf_tau)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(1, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(0.001, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
+}
+', 
+file = file.path(src_dir, "VBGF JAGS Model 4.txt")
+)
+```
+
+
+### Setting initial variables
+Here we'll define inits, a list of initial starting points for our optimizer. inits is a list containing a set of lists corrosponding to each chain we'll run in our optimizer. For this analyis there will be 3 chains. The first we'll set using some reasonable estimates from our maximum likelihood work, the remaining 2 will use values 2X larger and smaller than the first chain. 
+
+```{r}
+## Initial values for each chain are stored in 3 lists with elements corrosponding to all variables to be initialized
+inits1 = list('Linf_mu' = 60,   'k_mu' = 0.30)
+inits2 = list('Linf_mu' = 60*2, 'k_mu' = 0.3*2)
+inits3 = list('Linf_mu' = 60/2, 'k_mu' = 0.3/2)
+## Creating a single list that contains the lists corrosponding to each chain's initial values
+inits = list(inits1, inits2, inits3)
+```
+
+### Running our models 
+```{r}
+## Model 1: Linf and K vary between individuals
+model_1 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+
+## Model 2: Linf varies between individuals, K is fixed
+model_2 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+
+## Model 3: K varies between individuals, Linf is fixed
+model_3 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+
+## Model 4: Linf and K are fixed
+model_4 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = 500000, n.burnin = 10000, n.thin = 50)
+
+growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
+```
+
+## Model Diagnostics
+In this next chunk, we'll loop through the 4 growth models we've constructed to produce some diagnostic plots to check convergence and examine parameter distributions
+```{r}
+##### Model Diagnostics
+for(i in 1:length(growth_models)){
+  # readline(paste('Press Enter to View Diagnostics for', names(growth_models)[i]))
+  model = growth_models[[i]]
+  print(paste("Diagnostic plots for", names(growth_models)[i]))
+  
+  ## Write out model summary table
+  write.csv(model$BUGSoutput[10], file.path(results_dir, paste( names(growth_models)[i], ' Parameter Summaries.csv')))
+}
+
+for(i in 1:length(growth_models)){
+  ### Summary Statistics and Parameter Estimates
+  summary(model)
+  
+  ### Generating MCMC object for analysis
+  model_mcmc = as.mcmc(model)
+  
+  par(mfrow = c(2, 4))
+  ### xy plot
+  xyplot(model_mcmc)
+  
+  ### Trace and Density Plots
+  plot(model_mcmc)
+  
+  ### Autocorrelation plots
+  autocorr.plot(model_mcmc)
+  
+  #### Other Diagnostics using CODA package
+  gelman.plot(model_mcmc)
+  geweke.diag(model_mcmc)
+  geweke.plot(model_mcmc)
+  raftery.diag(model_mcmc)
+  heidel.diag(model_mcmc)
+}
+dev.off()
+```
+
+Our diagnostic plots don't look bad and we can see that the Gelman Rubin convergene plots indicate that all models converged within the model burn-in phase. 
+
+After reviewing our diagnostic plots, we'll move on to looking at which term in our models have the most credibility. We'll do this using the coefficient of variation, equivilant to the mean divided by the standard deviation. A high coefficient of variability is indicitive of a poor parameter fit. 
+
+We assume the model 1, which allows both L and K to be fit independently for each fish is the best model. A low coefficient of variation for parameters under this model should confirm this. We'll then look at the remaining 3 models to see how variability in model terms is affected by fixing a given parameter across the population. 
+
+First we need to calculate the coefficient of variation for Linf_mu and k_mu parameters for each model. Then we'll make a plot examining the magnitude of the coefficient of variation for each model's parameters. 
+
+We'll organize these results in a dataframe so we can plot the results using ggplot.
+```{r}
+#### Extracting coefficients of variation for Linf and K paramters
+cv_df = data.frame(stringsAsFactors = F)
+for(i in 1:length(growth_models)){
+  curr_mod = growth_models[[i]]
+  cv_df = rbind(cv_df, data.frame('model' = names(growth_models)[i], 'Parameter' = 'Linf', 'cv' = curr_mod$BUGSoutput$summary["Linf_mu",'sd'] / curr_mod$BUGSoutput$summary["Linf_mu","mean"] * 100), 
+                data.frame('model' = names(growth_models)[i], 'Parameter' = 'k', 'cv' = curr_mod$BUGSoutput$summary["k_mu",'sd'] / curr_mod$BUGSoutput$summary["k_mu","mean"] * 100))
+}
+
+## Adding the source of variability for each model and term to our data frame
+cv_df$`source of individual variability` = 'Other'
+cv_df$`source of individual variability`[cv_df$model == 'model_1'] = 'Both'
+cv_df$`source of individual variability`[cv_df$model == 'model_4'] = 'Neither'
+cv_df$`source of individual variability`[cv_df$model == 'model_2' & cv_df$Parameter == 'Linf'] = 'Self'
+cv_df$`source of individual variability`[cv_df$model == 'model_3' & cv_df$Parameter == 'k'] = 'Self'
+cv_df$`source of individual variability` = as.factor(cv_df$`source of individual variability`)
+cv_df$`source of individual variability` = fct_relevel(cv_df$`source of individual variability`, c('Both', 'Self', 'Other', 'Neither'))
+```
+
+Here we'll make our plot
+```{r}
+### Plotting our coefficient of variation
+fig3 = ggplot(cv_df, aes(x = `source of individual variability`, y = cv, col = Parameter)) + 
+  geom_point() + 
+  geom_line(aes(group = Parameter)) + 
+  labs(x = 'Source of Individual Variability', y = 'Coefficient of Variation (Percent)', fill = 'Parameter') + 
+  theme(legend.justification = c(1, 1), legend.position = c(.15, .95)) + 
+  ylim(0,100)
+#pdf(file.path(results_dir, 'Fig2 - Coefficients of Variation.pdf'))
+  print(fig3)
+#dev.off()
+```
+
+The x-axis labels indicate wether a term is fixed or not. "Both" refers to model 1 as both terms are fit independently. "Self"" and "Other" are models 2 and 3, while "neither" is model 4. We see that when both parameters are fit independently (model 1), both terms have the lowest coefficient of variation, indicating it is the model with the best fit. We see, unsuprisingly, as we make our effects fixed across the population, the deviation associated increases. 
+
+While model 1 is clearly the best performing model, when we compare parameter estimates from Models 1 and 2, we can infer the model 2, is likely credible as well.
+
+he additional Models 2-4 suggested that individual variability in both K and L_∞ was important, with perhaps variability in L_∞ being more important based upon the response of L_∞ standard deviation from the base case of Model 1 to the constrained individual variability in Model 3 and Model 4. 
+
+## Cleanup
+Saving our R environment as an image for easy future reference
+```{r}
+save.image(file.path(results_dir, 'Bayesian Workspace.RData'))
+```

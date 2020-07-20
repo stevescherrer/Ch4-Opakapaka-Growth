@@ -177,23 +177,22 @@ h.ssnl.f<- function(tagdat,param.g,param.A,param.sig)
 
 logl.ssnl.f<-function(param,npf,npA,tagdat)
 {   # this calculates the negative log likelihood of the data
-    
+
     npg<- npf+2
     param.g<- param[1:npg]
     param.A<- param[(npg+1):(npg+npA)]
     param.sig<- param[(npg+npA+1):(npg+npA+2)]
 
+    # print(c(param.g, param.A, param.sig))
+    
     ndata<- nrow(tagdat)
     gms<-   gstats.ssnl.f(tagdat,param.g,param.A,param.sig)
     mng<- gms[,1]
     sdg<- gms[,2]
     pdf.l1.l2<- hermite20.f(int.ssnl.f,tagdat,param.g,param.A,
 		param.sig,ndata,mng,sdg)
-    neglogl<- -sum(log(pdf.l1.l2))
+    negloglz<- -sum(log(pdf.l1.l2))
     if(is.na(neglogl)){print(" neglogl NA ")}
-    
-    #print(param)
-    #print(neglogl)
     return(neglogl)
 }
 

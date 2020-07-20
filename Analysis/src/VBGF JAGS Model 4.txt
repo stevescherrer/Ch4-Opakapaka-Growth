@@ -1,0 +1,30 @@
+# Model 4
+model{   										 
+	for (i in 1:N)	 {
+		# for (j in 2:n[i])	{
+		for (j in n[i])	{
+			L[i, j] ~ dnorm(L_Exp[i, j], tau)	
+			L_Exp[i, j] <-  Linf*(1.0 - exp(-k*(A[i]+dt[i, j-1])))
+			L.pred[i, j] ~ dnorm(L_Exp[i, j], tau)
+			p.value[i, j] <- step(L.pred[i, j] - L[i, j])
+		}
+	# Predicting length at capture
+		L[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k*A[i]))	
+		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
+		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
+		A[i] ~ dgamma(Shape, rate)
+	}
+	k_std <- sqrt(1/k_tau)
+	variance <- 1/tau
+	k ~ dnorm(k_mu, k_tau) 
+	Linf ~ dnorm(Linf_mu,  Linf_tau)
+	Linf_mu ~ dnorm(100, 0.0001)
+	Linf_tau ~ dgamma(0.001, 0.0001)
+	Linf_std <- sqrt(1/Linf_tau)
+	Shape ~ dunif(0, 100)
+	rate ~ dunif(0, 100)
+	k_mu ~ dbeta(1, 1)  T(0.01,0.9)
+	k_tau ~ dgamma(0.001, 0.0001) 
+	tau ~ dgamma(0.001, 0.0001)
+}

@@ -665,7 +665,7 @@ mod_eval_results = foreach(i = 1:cross_validation_iterations, .combine = rbind) 
       lit_var_scores[i] = calculate_predictive_variance(Lm = tagdat_validate[ ,1], dt = tagdat_validate[ ,4], linf = lit_vbgf_for_train$linf[i], k = lit_vbgf_for_train$k[i], Lr_obs = tagdat_validate[ ,2])
     }
    
-    ## Bayes_models
+    ## Comparing bootstrapped model to Bayes_models
     bayes_models = lit_vbgc_params[21:24, ]
     bayes_var_scores = rep(0, length(bayes_models$author))
     for(i in 1:length(bayes_models$author)){

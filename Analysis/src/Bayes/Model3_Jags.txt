@@ -11,7 +11,7 @@ model{
 		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k[i]*A[i]))	
 		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
 		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
-        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+        	k[i] ~ dnorm(k_mu, k_tau) T(0,1)
 		A[i] ~ dgamma(Shape, rate)
 	}
 	Linf_std <- sqrt(1/Linf_tau)
@@ -25,4 +25,5 @@ model{
 	k_mu ~ dbeta(1, 1)
 	k_tau ~ dgamma(0.01, 0.0001)
 	tau ~ dgamma(0.01, 0.0001)
+
 }

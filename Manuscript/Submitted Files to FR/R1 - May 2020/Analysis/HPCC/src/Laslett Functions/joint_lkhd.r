@@ -30,7 +30,7 @@
 
 logl.oto.f <- function(param, npf, npA, otodat)
 {
-  # print(param)
+  #print(param)
   # Get data:
 	age <- otodat[, 1]
 	len <- otodat[, 2]
@@ -48,14 +48,13 @@ logl.oto.f <- function(param, npf, npA, otodat)
 	var.len <- (grwth * sig.L)^2 + sig.oto^2
 	neglogl <- 1/2 * sum(log(2 * pi * var.len) + ((len - exp.len)^2)/var.len)
 	
-	# print(neglogl)
+	#print(neglogl)
 	return(neglogl)
 }
 
 
 #2) Length-frequency (LF) negative log-likelihood component:
 # - assumes data is in a matrix with columns: age, mean.mode, se.mode
-
 
 logl.lf.f <- function(param, npf, npA, lfdat)
 {
@@ -69,6 +68,7 @@ logl.lf.f <- function(param, npf, npA, lfdat)
 	mu.L <- param[1]
 	param.f <- param[3:(npf+2)]
 	a0 <- param[2+npf+npA+3]
+	#a0 = 0 # Note: Uncomment this to remove the effect of fitting a0.
 	sig.lf <- param[2+npf+npA+5]
 
 	grwth <- growth.ssnl.f(age - a0, param.f, age)
@@ -76,13 +76,13 @@ logl.lf.f <- function(param, npf, npA, lfdat)
 	var.mode <- sig.lf^2 + se.mode^2
 	neglogl <- 1/2 * sum(log(2 * pi * var.mode) + ((mu.mode - exp.mode)^2)/var.mode)
 	#print(param)
-	# print(neglogl)
+	#print(neglogl)
 	return(neglogl)
 }
 
 #3) Tagging negative log-likelihood component:
 # - code and description found in file 'tag lkhd.r'
-# source('tag_lkhd.r')
+#source("/Users/stephenscherrer/Google Drive/Weng Lab/Data/Bottomfish/Okamoto's 1990s Mark Recapture Data/src/Laslett Functions/tag_lkhd.r")
 
 
 # JOINT LIKELIHOOD:
@@ -95,8 +95,8 @@ joint.logl.f <- function(param,npf,npA,tagdat,otodat,lfdat,wt.oto=1,wt.tag=1,wt.
   if(wt.oto>0)  neglogl.oto <- logl.oto.f(param,npf,npA,otodat)
   if(wt.lf>0) neglogl.lf <- logl.lf.f(param,npf,npA,lfdat)
   neglogl <- wt.tag*neglogl.tag + wt.oto*neglogl.oto + wt.lf*neglogl.lf
-  # print(param)
-  # print(c(neglogl.tag, neglogl.oto, neglogl.lf, neglogl))
+  #print(param)
+  #print(c(neglogl.tag, neglogl.oto, neglogl.lf, neglogl))
   return(neglogl)
 }
 

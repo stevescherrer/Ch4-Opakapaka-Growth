@@ -55,7 +55,7 @@ joint.logl.f <- function(param, npf, npA, tagdat = NULL, tagdat2 = NULL ,otodat 
   
   neglogl <- wt.tag*neglogl.tag + wt.tag2*neglogl.tag2 + wt.oto*neglogl.oto+ wt.oto2*neglogl.oto2 + wt.oto3*neglogl.oto3 + wt.oto4*neglogl.oto4 + wt.lf*neglogl.lf + wt.lf2*neglogl.lf2
   # print(c(neglogl.tag, neglogl.tag2, neglogl.oto, neglogl.oto2, neglogl.oto3, neglogl.oto4, neglogl.lf, neglogl.lf2, neglogl))
-  # print(neglogl)
+  print(neglogl)
   return(neglogl)
 }
 

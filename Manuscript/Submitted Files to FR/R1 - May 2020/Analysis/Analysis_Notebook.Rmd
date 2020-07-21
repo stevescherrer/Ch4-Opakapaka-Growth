@@ -5,42 +5,33 @@ output:
   pdf_document: default
   html_notebook: default
 ---
-Written By Stephen Scherrer
-  Latest Major Revision 20 July 2020
 
-This Notebook contains code to run analysis and produce plots associated with the manuscript "Comparing Age and Growth Increments from Bayesian and integrative data approaches for the deepwater snapper Pristipomoides filamentosus in the Hawaiian Islands" It is devided into the following sections: 
 
-  1. Workspace Setup
-  2. Bayesian Analysis (Models I - IV)
-  3. Maximum Likelihood Integrative Approach (Models 5-11) 
-  4. Sensitivity Analysis
-  5. Plotting Figures
-  6. Workspace Cleanup
-  7. Additional Notes
 
-# 1. Workspace Setup
+This Notebook contains code to run analysis and produce plots associated with the manuscript "Comparing Age and Growth Increments from Bayesian and integrative data approaches for the deepwater snapper Pristipomoides filamentosus in the Hawaiian Islands"
+
+## Workspace Setup
 ### Clearing R enviornment
 ```{r}
 ## Clearing R enviornment
 rm(list = ls())
 gc()
-set.seed(42)
-```
 
-### Establishing Directory Heirarchy
-```{r}
 ## Establishing Directory Heirarchy
 proj_dir = getwd() 
 proj_dir = "/Volumes/GoogleDrive/My Drive/Weng Lab/Personal_Folders/Steve/dissertation work/Ch 4. Opakapaka Growth/Analysis"
 data_dir = file.path(proj_dir, 'data')
 src_dir = file.path(proj_dir, 'src')
 results_dir = file.path(proj_dir, 'results')
+run_results_dir = results_dir
+
+set.seed(42)
 ```
 
 ### Importing Packages and Dependencies
 ```{r include=FALSE}
 ## Source function scripts provided by Lasslett et al.
-source(file.path(src_dir, "Laslett Functions", "joint_lkhd.r"))
+source(file.path(src_dir, "Laslett Functions/joint_lkhd.r"))
 source(file.path(src_dir, "Laslett Functions/growth_functions.r"))
 source(file.path(src_dir, "Laslett Functions/tag_lkhd.r"))
 source(file.path(src_dir, "Age and Growth Utility Functions.R")) # Modifications to laslett functions
@@ -75,12 +66,12 @@ if(file.exists(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RDat
 }
 ```
 
-### Defining Global Hyperparameters
+User Defined Variables
 ```{r}
 min_time_at_lib = 60 # days
 ```
 
-## 2. Bayesian Analysis (Models I - IV)
+## Bayesian Analysis (Models I - IV)
 The following section uses JAGS to fit bayesian models under different constraints using the OTP data only.
 
 ### Importing and preprocessing OTP Data
@@ -95,6 +86,7 @@ L: A matrix of fork lengths (cm). Rows are individuals, columns are capture even
 dt: A matrix of delta t (years) corrosponding to time between capture events. 
 n: A vector where values represent the number of valid recaptures for individuals
 N: A numeric variable corrosponding to the number of unique fish in our dataset
+
 ```{r}
 ### L: A matrix of fork lengths (cm). Rows are individuals, columns are capture events
 L = cbind(
@@ -173,7 +165,7 @@ data = list(n = n, L = L, dt = dt, N = length(n))
 dim(L)[1] == 387
 ```
 
-### Defining Bayesian Models 1-4 With Priors for Linf_mu and K_mu
+## Specifying Bayesian Models
 In this chunk, we define 4 models that differ in the way they that they treat VBGF parameters Linf and K. 
 
 Model 1: L infinity (Linf) and k will be allowed to vary between individuals. No Fixed Effects
@@ -182,6 +174,8 @@ Model 3: k is allowed to vary. Linf is fixed
 Model 4: Linf and k are fixed. 
 
 Note that some parameters in models 2 and 4 have been truncated to avoid upsetting the MCMC slicing algorthm 
+
+### Models With Priors
 ```{r}
 ## Defining model 1
 cat(
@@ -218,7 +212,7 @@ model{
 	  k_tau ~ dgamma(01, 0.0001) 
     tau ~ dgamma(0.001, 0.0001)
 }', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt")
+file = file.path(src_dir, "VBGF JAGS Model 1 - No Tau Prior.txt")
 )
 
 ## Defining model 2
@@ -254,7 +248,7 @@ Linf_std <- sqrt(1/Linf_tau)
 
 }
 	', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt")
+file = file.path(src_dir, "VBGF JAGS Model 2 - No Tau Prior.txt")
 )
 
 ## Defining model 3
@@ -288,7 +282,7 @@ model{
 	k_tau ~ dgamma(01, 0.0001) 
 	tau ~ dgamma(0.01, 0.0001)
 }', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt")
+file = file.path(src_dir, "VBGF JAGS Model 3 - No Tau Prior.txt")
 )
 
 ## Defining model 4
@@ -324,12 +318,13 @@ model{
 	tau ~ dgamma(0.001, 0.0001)
 }
 ', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt")
+file = file.path(src_dir, "VBGF JAGS Model 4 - No Tau Prior.txt")
 )
 ```
 
-### Defining Bayesian Model Hyperparameters
+### Initializing MCMC Chains
 Here we'll define inits, a list of initial starting points for our optimizer. inits is a list containing a set of lists corrosponding to each chain we'll run in our optimizer. For this analyis there will be 3 chains. The first we'll set using some reasonable estimates from our maximum likelihood work, the remaining 2 will use values 2X larger and smaller than the first chain. 
+
 ```{r}
 ## Initial values for each chain are stored in 3 lists with elements corrosponding to all variables to be initialized
 inits1 = list('Linf_mu' = 67.5,   'k_mu' = 0.242)
@@ -345,11 +340,11 @@ n_burnin = 150000 # How many iterations to run during the model's burn in phase
 n_thin = 50 # Retain one in n_thin samples from the posterior distribution. 
 ```
 
-### Running Bayesian Models - With Priors for Linf_mu and k_mu
+### Running Bayesian Models With Priors
 ```{r}
 ## Model 1: Linf and K vary between individuals
 model_1 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - No Tau Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
@@ -358,7 +353,7 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 2: Linf varies between individuals, K is fixed
 model_2 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - No Tau Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
@@ -367,7 +362,7 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 3: K varies between individuals, Linf is fixed
 model_3 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - No Tau Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
@@ -376,7 +371,7 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 4: Linf and K are fixed
 model_4 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - No Tau Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
@@ -386,7 +381,40 @@ growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 ```
 
-## Bayesian Model Diagnostics
+### Running Bayesian Models again without priors
+```{r}
+## Model 1: Linf and K vary between individuals
+model_1 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 2: Linf varies between individuals, K is fixed
+model_2 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 3: K varies between individuals, Linf is fixed
+model_3 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+## Model 4: Linf and K are fixed
+model_4 = jags(data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - Prior.txt"),
+               parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
+               DIC = T, 
+               n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
+
+growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
+```
+
+## Model Diagnostics
 Producing diagnostic plots and checking convergence for each of our 4 growth models, 
 ```{r}
 ##### Model Diagnostics
@@ -432,7 +460,8 @@ After reviewing our diagnostic plots, we'll move on to looking at which term in 
 
 We assume the model 1, which allows both L and K to be fit independently for each fish is the best model. A low coefficient of variation for parameters under this model should confirm this. We'll then look at the remaining 3 models to see how variability in model terms is affected by fixing a given parameter across the population. 
 
-### Calculating Coefficient of Variation in Linf_mu and k_mu  parameters for Bayesian Models
+First we need to calculate the coefficient of variation for Linf_mu and k_mu parameters for each model. Then we'll make a plot examining the magnitude of the coefficient of variation for each model's parameters. 
+
 ```{r}
 #### Extracting coefficients of variation for Linf and K paramters
 cv_df = data.frame(stringsAsFactors = F)
@@ -452,7 +481,7 @@ cv_df$`source of individual variability` = as.factor(cv_df$`source of individual
 cv_df$`source of individual variability` = fct_relevel(cv_df$`source of individual variability`, c('Both', 'Self', 'Other', 'Neither'))
 ```
 
-### Figure 3. Visualizing Coefficient of Variation for Bayesian Models
+Visualizing CV
 ```{r}
 ### Plotting our coefficient of variation
 fig3 = ggplot(
@@ -483,11 +512,12 @@ While model 1 is clearly the best performing model, when we compare parameter es
 The additional Models 2-4 suggested that individual variability in both K and L_∞ was important, with perhaps variability in L_∞ being more important based upon the response of L_∞ standard deviation from the base case of Model 1 to the constrained individual variability in Model 3 and Model 4. 
 
 
-# 3. Maximum Likelihood Integrative Approach (Models 5-11) 
-## Data Setup
-### Formatting Tagging Data for ML integrative models
+# Maximum Likelihood Integrative Models
+
+## Formatting Tagging Data for ML integrative models
 Now we want to format a table with lm (length at marking), lr (length at recapture), and dt (elapsed time)
 Note: If a fish was recaptured multiple times, there is a single entry for that individual corrosponding to the length at initial marking and the length at final recapture
+
 ```{r}
 tagdat = data.frame(
             'L1' = L[ ,1],
@@ -503,7 +533,7 @@ for (i in 1:nrow(tagdat)){
 }
 ```
 
-### Importing Additional Data Sets - Otolith Data and Length Frequency Data
+## Importing Additional Data Sets - Otolith Data and Length Frequency Data
 ```{r}
 #### Otolith Data (Ralston and Miyamoto 1983, DeMartini et al. 1994, Andrews et al. 2012) 
 otodat = read.csv(file.path(data_dir, "RalstonMiyamotoandDemartiniAndrews.csv"), col.names = c("age", "len", "source"))
@@ -519,10 +549,10 @@ Fork lengths are related to age based on spawning time and time to recruitment
 lfdat = length_freq_decomp(length_frequency_data, plot = TRUE, fixed_modes = TRUE)
 ```
 
-## Fitting Preliminary Models
+
+#### Fitting Preliminary Models
 Using the methods of Laslett et al, fit separate models to tagging data, length-age data, and length frequency data
 
-#### Defining Maximum Likelihood Model Hyper parameters
 ```{r}
 #### Initializing global model parameters for all ML models
 growth.ssnl.f<- growthvb.f
@@ -536,22 +566,17 @@ lb <- c(  40,   0.1, .05,   0.1,   .05,    0.1,     0,   0,     0,     0)
 ub <- c( 110,  15.0, .50,   1.5,   .50,   15.0,     0,   3,     3,     3)
 ```
 
-### VBGF - Growth Increment / Mark Recapture Approach
 ```{r}
 ### 1. Mark Recapture Data
-vbgf_growth_increment <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0,wt.tag=1,wt.lf=0)
+vbgf_growth_increment <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0,wt.tag=1/dim(tagdat)[1],wt.lf=0)
 model_5 = vbgf_growth_increment
-print(model_5)
 ```
 
-### VBGF - Direct Aging / Otolith Approach
 ```{r}
 ### 2. Length at Age Data
 vbgf_length_age <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=1,wt.tag=0,wt.lf=0)
-print(vbgf_length_age)
 ```
 
-### VBGF - Length Fequency Approach
 ```{r}
 ### 3a. Length Frequency Data
 # Some notes about replicating Results of Moffitt and Parrish 1996 - ELEFAN model they used did not estimate a0. a0 is soaking up some of the observed variability that otherwise goes to K. In the function logl.lf.f within the script file joint_lkhd.r, uncommenting the line "a0 = 0" will force this model.
@@ -563,8 +588,6 @@ lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
 ub <- c(300,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,     15)
 
 vbgf_length_frequency_unconstrained <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0, wt.tag=0, wt.lf=1)
-
-print(vbgf_length_frequency_unconstrained)
 
 #### 3b. Length Frequency Data - Linf constrained by larger linf from oto/mr data
 ## Constraining Linf to a constant - In this case, maximum Linf from oto or mark recapture
@@ -578,8 +601,6 @@ ub <- c(linf_constrained,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,  
 
 vbgf_length_frequency_constrained <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=tagdat,otodat=otodat,lfdat=lfdat, wt.oto=0, wt.tag=0, wt.lf=1)
 
-print(vbgf_length_frequency_constrained)
-
 #### Is it appropriate to try to measure a0 using such limited data?
 ### Lets use AICc to find out
 ## AICc = 2k - 2log(L) + ((2k^2 + 2k) / (n-k-1))
@@ -590,7 +611,6 @@ aicc_without_a0_or_sig.lf = 2*1 + 2*(7565.03) + ((2*1^2 + 2*1) / (21 - 1 - 1)) #
 ### Conclusion: Yes, definitely, because AICc with a0 and sig.lf is more than 40 units lower
 ```
 
-### Saving VBGF Results
 ```{r}
 ### Saving best growth parameter estimates from each model to a table
 results = data.frame(stringsAsFactors = FALSE)
@@ -606,7 +626,7 @@ results = data.frame(stringsAsFactors = FALSE)
 ##       mu.L, sig.L,  k,  mu.A, sig.A, sig.sci, sig.f, a0, sig.oto, sig.lf
 p0 <- c(  70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
 lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
-ub <- c(110,  15.0, .50,   3,   .50,   15.0,     0,   10,   15,     15)
+ub <- c(110,  15.0, .50,   1.5,   .50,   15.0,     0,   10,   15,     15)
 
 ```
 
@@ -726,7 +746,7 @@ bootstrap_results$booted_param_ests_model11 = bootstrap_growth_params(filename =
 ```{r}
 colnames(results) = c('model_id', 'mu.L', 'sig.L',  'k',  'mu.A', 'sig.A', 'sig.sci', 'sig.f', 'a0', 'sig.oto', 'sig.lf')
 results$`time to 90%` = yrs_to_.9_linf(linf = as.numeric(results$mu.L), k = as.numeric(results$k), a0 = as.numeric(results$a0))
-# write.csv(results, file = file.path(results_dir, 'Tables/maximum_likelihood_parameter_estimates.csv'))
+# write.csv(results, file = file.path(run_results_dir, 'likelihood_parameter_estimates_with_full_data.csv'))
 ```
 
 ### Comparing best model against all prviously published parameters for the region
@@ -741,7 +761,7 @@ for(i in 1:dim(integrative_models)[1]){
 }
 best_model_lit_bayes_integrated = names(which.max(table(lit_vs_int_vs_bayes_scores)))
 
-pdf(file.path(results_dir, 'Figures/Barplot of lit vs. bayes vs. best integrative model.pdf'), width = 11, height = 8.5)
+pdf(file.path(run_results_dir, 'Barplot of lit vs. bayes vs. best integrative model.pdf'), width = 11, height = 8.5)
 par(las = 2)  
 barplot(prop.table(table(lit_vs_int_vs_bayes_scores)))
 dev.off()
@@ -764,7 +784,7 @@ print(paste('Iterations failing to converge: ', length(na_index), ' (', round(le
 # nll_eval_results = nll_eval_results[-na_index, ]
 ```
 
-### Determining "best" model between Bayes, ML, Lit
+
 ```{r}
 ### Determining which model performed best over all iterations
 best_models = c()
@@ -854,75 +874,57 @@ print(paste('mean:', round(mean(second_best_lit_vec, na.rm = TRUE), 2)))
 print(paste('standard deviation:', round(sd(second_best_lit_vec, na.rm = TRUE), 2)))
 ```
 
-# 4. Sensitivity Analysis
+### Implementing some sort of sensitivity analysis
 ```{r}
 ## Defining Functions for Sensitivity Analysis
 
 #### THIS FUNCTION WORKS FOR MODEL 5
-generate_sensitive_data = function(n, data = tagdat, forward = TRUE){
+generate_sensitive_data = function(data = tagdat){
   ## A wrapper function for generating synthetic data form a uniform distribution for Maximum Likelihood analysis
   sensitive_data = data.frame()
   
-  if (forward){
-    tagdat$bin = floor(tagdat$L1 / 5) * 5
-  } else {
-    tagdat$bin = floor(tagdat$L2 / 5) * 5
-  }
+  tagdat$bin = floor(tagdat$L1 / 5) * 5
 
   ## Loop through each bin, select 200 observations with replacement and add them to synthetic dataset
   for (bin in unique(tagdat$bin)){
     bin_data = tagdat[tagdat$bin == bin, ]
     sensitive_data = rbind(
                       sensitive_data, 
-                      bin_data[sample(x = 1:dim(bin_data)[1], size = n, replace = TRUE), ]
+                      bin_data[sample(x = 1:dim(bin_data)[1], size = 200, replace = TRUE), ]
                       )
 
   return(sensitive_data)
   }
 }
 
+synthetic_sensitivity_data = generate_sensitive_data()
 
-generate_sensitive_data_bayes = function(synthetic_data){
-  ## A wrapper function for generating synthetic data form a uniform distribution for baysian analysis
-  bayes_sensitivity_data = synthetic_data
-
-  ## Formatting Data
-  bayesian_sensitivity_data = list(
-    n = rep(2, length(bayes_sensitivity_data$L1)), 
-    L = cbind(bayes_sensitivity_data$L1, bayes_sensitivity_data$L2), 
-    dt = cbind(bayes_sensitivity_data$dt, bayes_sensitivity_data$dt), 
-    N = length(bayes_sensitivity_data$L1)
-    )
-  
-  return(bayesian_sensitivity_data)
-}
-
-# forward_synthetic_data = synthetic_sensitivity_data
-synthetic_sensitivity_data = generate_sensitive_data(n = 200)
-bayesian_sythetic_data = generate_sensitive_data_bayes(synthetic_sensitivity_data)
 ```
 
-## Sensitivity Analysis - Maximum Likelihood Models 5-11
+## Sensitivity Analysis - Obtaining Delta L and K for Maximum Likelihood Models 5 - 11
 ```{r}
 #### Sensitivity Analysis for  ML models
-## Hyper parameters for sensitivity models
-p0 <- c(70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
-lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
-ub <- c(110, 15.0, .70,     7,    50,   15.0,     0,   10,   15,     15)
 
 ### Model 5
+p0 <- c(  68,   5,   .20,  1.5,    .1,    2.5,  0,      -0.4,     1,      3)
+lb <- c(  60, 2.1,   .01,    -.5,   .01,    0.1,   0,     -2.5,     0.5,     0)
+ub <- c(  90,   7,    .4,      2,     5,      4,   0,    -0.01,       8,     5)
+
 ## Fit model with new data
 model_5_uniform_sensitive <- nlminb(p0,joint.logl.f,lower=lb,upper=ub,npf=npf,npA=npA,tagdat=synthetic_sensitivity_data, wt.tag = 1)
 
 ### Model 6
+
 ## Fit model with synthetic data
 model_6_uniform_senstive = fit.vb.equalwt.grouped <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=synthetic_sensitivity_data, otodat=otodat, lfdat=lfdat, wt.oto=1/dim(otodat)[1], wt.tag=1/dim(synthetic_sensitivity_data)[1], wt.lf=1/length(lfdat$curr_month_year))
 
 ### Model 7
+
 ## Fit model with synthetic data
 model_7_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=synthetic_sensitivity_data, otodat=otodat, lfdat=lfdat, wt.oto=1, wt.tag= (1/length(synthetic_sensitivity_data$L1)) * length(tagdat$L1), wt.lf=1)
 
 ### Model 8
+
 ## Fit model with synthetic data
 model_8_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=synthetic_sensitivity_data, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 1/dim(otodat[otodat$source == 'ralston and miyamoto', ])[1], wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(synthetic_sensitivity_data)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
 
@@ -930,10 +932,19 @@ model_8_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf
 ## Fit model with synthetic data
 model_9_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=synthetic_sensitivity_data, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1, wt.oto2= 1, wt.oto3=1, wt.oto4=1, wt.tag = (1/length(synthetic_sensitivity_data$L1)) * length(tagdat$L1), wt.tag2 = 0, wt.lf = 1, wt.lf2 = 0)
 
+p0 <- c(  70,     1, .10,     1,   .10,      1,     0,   0,     1,      1)
+lb <- c(40,   0.1, .05,   0.1,   .05,    0.1,     0,  -10,  0.1,    0.1)
+ub <- c(110,  15.0, .50,   5,   .50,   15.0,     0,   10,   15,     15)
+
 ## Model 10
 model_10_uniform_sensitive = nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, tagdat=synthetic_sensitivity_data, tagdat2 = NULL, otodat=otodat[otodat$source == 'demartini', ], otodat2=otodat[otodat$source == 'ralston and miyamoto', ], otodat3=otodat[otodat$source == 'andrews bomb carbon', ], otodat4=otodat[otodat$source == 'andrews lead radium', ], lfdat=lfdat, lfdat2=NULL, wt.oto= 1/dim(otodat[otodat$source == 'demartini', ])[1], wt.oto2= 0, wt.oto3=1/dim(otodat[otodat$source == 'andrews bomb carbon', ])[1], wt.oto4=1/dim(otodat[otodat$source == 'andrews lead radium', ])[1], wt.tag = 1/dim(synthetic_sensitivity_data)[1], wt.tag2 = 0, wt.lf = 1/length(lfdat$curr_month_year), wt.lf2 = 0)
 
 ### Model 11
+lb <- c(  60,    1.5,   .005,  -1,   .005,    0.05,  0,       -5.0,  0.25,     0)
+ub <- c(  90,   14.0,   .800,   4,     10,       8,  1,   -0.00001,    16,    10)
+p0 <- c(  68,    5.0,    .20, 1.5,     .1,     2.5,  0.1,       -0.4,     1,     3)
+
+
 model_11_uniform_sensitive <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=npf, npA=npA, control = list(iter.max = 1000),
                                      tagdat=synthetic_sensitivity_data, 
                                      tagdat2 = NULL, 
@@ -951,38 +962,37 @@ model_11_uniform_sensitive <- nlminb(p0, joint.logl.f, lower=lb, upper=ub, npf=n
                                      wt.tag2 = 0, 
                                      wt.lf = 1/length(lfdat$mode.age) * length(lfdat$mode.age), 
                                      wt.lf2 = 0)
-
-save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 ```
 
-### Sensitivity Analysis - Bayesian Models 1-4
+
+### Sensitivity Estimates using bayesian approaches
 ```{r}
 #### Sensitivity Analysis for Bayesian Model 1
-bayesian_sensitivity_fit_model_1 = jags(bayesian_sythetic_data, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt"),
+bayesian_sensitivity_fit_model_1 = jags(synthetic_sensitivity_data, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 1 - Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burn = n_burnin, n.thin = n_thin)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
-### Sensitivity Analysis for Bayesian Model 2
-bayesian_sensitivity_fit_model_2 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt"),
+#### Sensitivity Analysis for Bayesian Model 2
+bayesian_sensitivity_fit_model_2 = jags(synthetic_sensitivity_data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 2 - Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
-### Sensitivity Analysis for Bayesian Model 3
-bayesian_sensitivity_fit_model_3 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt"),
+#### Sensitivity Analysis for Bayesian Model 3
+bayesian_sensitivity_fit_model_3 = jags(synthetic_sensitivity_data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 3 - Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
-### Sensitivity Analysis for Baysian Model 4 
+#### Sensitivity Analysis for Baysian Model 4 
 ## Fitting Model
-bayesian_sensitivity_fit_model_4 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt"),
+bayesian_sensitivity_fit_model_4 = jags(synthetic_sensitivity_data, inits, 
+               model.file = file.path(src_dir, "VBGF JAGS Model 4 - Prior.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 
@@ -1104,15 +1114,15 @@ sensitivity_estimates = sensitivity_estimates[ ,c('model', "linf_sensitivity", "
 
 sensitivity_table = cbind(sensitivity_estimates$model, round(sensitivity_estimates[,2:ncol(sensitivity_estimates)], 2))
 colnames(sensitivity_table)[1] = 'Model'
-print(sensitivity_table)
+# print(sensitivity_table)
 
 ## Export table as .csv for manuscript
-write.csv(sensitivity_table, file.path(results_dir, 'Tables/table_6_sensitivity_analysis.csv'), row.names = FALSE)
+write.csv(sensitivity_table, file.path(results_dir, 'table_6_sensitivity_analysis.csv'), row.names = FALSE)
 }
 
 ```
 
-# 5. Plotting Figures
+#### Plotting Figures for Paper
 ```{r}
 #### Figure 1: Histogram of fork length and dt
 library(ggplot2)
@@ -1157,7 +1167,7 @@ oto_data_plot = ggplot(
 
 print(oto_data_plot)
 
-ggsave(filename = 'Figures/Fig2b - Direct Aging Plot.pdf', oto_data_plot, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
+ggsave(filename = 'Fig2b - Direct Aging Plot.pdf', oto_data_plot, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
 
 ### FIGURE 2c. line plot of length frequency data
 ## Load back in lf data
@@ -1196,13 +1206,13 @@ modal_progression_fig = ggplot(data = lfdat, mapping = aes(x = month_ord, y = mo
   ylim(0, 20)
 print(modal_progression_fig)
 
-ggsave(filename = 'Figures/Fig2c - Modal Progression Plot.pdf', modal_progression_fig, device = 'pdf', path = results_dir, height = 5, width = 7.5)
+ggsave(filename = 'Fig2c - Modal Progression Plot.pdf', modal_progression_fig, device = 'pdf', path = results_dir, height = 5, width = 7.5)
 
 ### Figure 3: Bayesian CV
 print (fig3)
 
 ## Save Figure
-ggsave(filename = 'Figures/Fig3 - Coefficients of Variation.pdf', plot = fig3, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
+ggsave(filename = 'Fig3 - Coefficients of Variation.pdf', plot = fig3, device = 'pdf', path = results_dir, height = 3.28, width = 5.00)
   
 
 ### Figure 4: Comparing parameter estimations of FL at recapture to observed FL at recapture
@@ -1241,7 +1251,7 @@ model_params = data.frame(
 model_params$Linf = as.numeric(model_params$Linf); model_params$k = as.numeric(model_params$k)
 
 {
-pdf(file.path(results_dir, 'Figures/Fig4 - Predicted vs. Observed LR with validation data.pdf'), width = 11, height = 8.5)
+pdf(file.path(run_results_dir, 'Fig4 - Predicted vs. Observed LR with validation data.pdf'), width = 11, height = 8.5)
   par(mfrow = c(4, 3))
   for(i in 1:nrow(model_params)){
     fl_recapture_predicted = predict_recapture_length(Lm = tagdat$L1, dt = tagdat$dt, linf = model_params$Linf[i], k = model_params$k[i])
@@ -1274,18 +1284,20 @@ fig_5 = arrangeGrob(grobs = list(linf_plot, k_plot), nrow = 2)
 plot(fig_5)
 
 ## Saving plot
-ggsave('Figures/Fig5_sensitive_differences.png', fig_6, device = 'pdf', path = results_dir)
+ggsave('Fig5_sensitive_differences.png', fig_6, device = 'pdf', path = results_dir)
 
 ```
 
-# 6. Workspace Cleanup
+
+## Cleanup
 Saving our R environment as an image for easy future reference
 ```{r}
-save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
+# save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 # load(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 ```
 
-## 7. Additonal Notes
-Notes about weighting laslett integrative growth function:
+
+
+## Notes about using laslett integrative growth function
 When weight is 1/dim(data)[1] -> Cost functions are weighted equally
 When weight is 1 -> Cost functions are weighted by observations

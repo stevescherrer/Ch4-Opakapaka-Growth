@@ -182,10 +182,13 @@ Model 3: k is allowed to vary. Linf is fixed
 Model 4: Linf and k are fixed. 
 
 Note that some parameters in models 2 and 4 have been truncated to avoid upsetting the MCMC slicing algorthm 
+
+Prior Values from Andrewws:
+ L⬁ ⫽ 67.5 com FL (1.8 cm), K ⫽ 0.242 (⫾0.057), and t0 ⫽ –0.29 years (⫾0.09 years). Correlations among the VBGF parameters were ?(L⬁,K) ⫽ –0.21, ?(L⬁,t0) ⫽ –0.14, and ?(t0,K) ⫽ 0.30.
 ```{r}
 ## Defining model 1
-cat(
-  '# Model 1
+cat('
+# Model 1
 model{   										 
 	for (i in 1:N)	 {
 	# for (j in 2:n[i])	{
@@ -207,18 +210,27 @@ model{
         k[i] ~ dnorm(k_mu, k_tau) T(0,1)
         A[i] ~ dgamma(Shape, rate)
     }
-    Linf_std <- sqrt(1/Linf_tau)
-    k_std <- sqrt(1/k_tau)
-    variance <- 1/tau
-    Linf_mu ~ dnorm(67.5, 0.0001)
-	  Linf_tau ~ dgamma(0.01, 0.0001)
-    Shape ~ dunif(0, 100)
-    rate ~ dunif(0, 100)
-	  k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
-	  k_tau ~ dgamma(01, 0.0001) 
-    tau ~ dgamma(0.001, 0.0001)
+    
+	    Linf_std <- sqrt(1/Linf_tau)
+    	k_std <- sqrt(1/k_tau)
+    	variance <- 1/tau
+	    Linf_mu ~ dnorm(71.39, 0.0001)
+	    Linf_tau ~ dgamma(0.01, 0.0001)
+    	Shape ~ dunif(0, 100)
+    	rate ~ dunif(0, 100)
+	    k_mu ~ dnorm(0.268, k_perc) T(0.01,0.99)
+	    k_tau ~ dgamma(01, 0.0001) 
+    	tau ~ dgamma(0.001, 0.0001)
+	
+	    # SD of parameters
+    	sig.linf <- 12.34 * 2
+    	sig.k <- 0.0932 * 2
+    
+      # Percision
+    	linf_perc = pow(sig.linf, -2)
+    	k_perc = pow(sig.k, -2)
 }', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt")
+file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1.txt")
 )
 
 ## Defining model 2
@@ -240,21 +252,29 @@ model{
 		Linf[i] ~ dnorm(Linf_mu,  Linf_tau)		
 		A[i] ~ dgamma(Shape, rate)
 	}
-Linf_std <- sqrt(1/Linf_tau)
+  Linf_std <- sqrt(1/Linf_tau)
 	k_std <- sqrt(1/k_tau)
 	variance <- 1/tau
 	k ~ dnorm(k_mu, k_tau) 
-  Linf_mu ~ dnorm(67.5, 0.0001)
+  Linf_mu ~ dnorm(71.39, linf_perc)
 	Linf_tau ~ dgamma(0.01, 0.0001)
 	Shape ~ dunif(0, 100)
 	rate ~ dunif(0, 100)
-	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	k_mu ~ dnorm(0.268, k_perc) T(0.01,0.99)
 	k_tau ~ dgamma(01, 0.0001) 
 	tau ~ dgamma(0.001, 0.0001)
 
+
+    # SD of Parameters
+    	sig.linf <- 12.34 * 2
+    	sig.k <- 0.0932 * 2
+    
+    # Percision
+    linf_perc = pow(sig.linf, -2)
+    k_perc = pow(sig.k, -2)
 }
 	', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt")
+file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2.txt")
 )
 
 ## Defining model 3
@@ -273,22 +293,30 @@ model{
 		L_Exp[i, 1] <-   Linf *(1.0 - exp(-k[i]*A[i]))	
 		L.pred[i, 1] ~ dnorm(L_Exp[i, 1], tau)
 		p.value[i, 1] <- step(L.pred[i, 1]- L[i, 1])
-        k[i] ~ dnorm(k_mu, k_tau) T(0,1)
+    k[i] ~ dnorm(k_mu, k_tau) T(0,1)
 		A[i] ~ dgamma(Shape, rate)
 	}
 	Linf_std <- sqrt(1/Linf_tau)
 	k_std <- sqrt(1/k_tau)
 	variance <- 1/tau
 	Linf ~ dnorm(Linf_mu,  Linf_tau)
-  Linf_mu ~ dnorm(67.5, 0.0001)
+  Linf_mu ~ dnorm(71.39, linf_perc)
 	Linf_tau ~ dgamma(0.01, 0.0001)
 	Shape ~ dunif(0, 100)
 	rate ~ dunif(0, 1000)
-	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
-	k_tau ~ dgamma(01, 0.0001) 
+	k_mu ~ dnorm(0.268, k_perc) T(0.01,0.99)
+	k_tau ~ dgamma(.01, 0.0001) 
 	tau ~ dgamma(0.01, 0.0001)
+	
+	  # SD of Parameters
+    	sig.linf <- 12.34 * 2
+    	sig.k <- 0.0932 * 2
+    
+    # Percision
+    linf_perc = pow(sig.linf, -2)
+    k_perc = pow(sig.k, -2)
 }', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt")
+file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3.txt")
 )
 
 ## Defining model 4
@@ -314,17 +342,25 @@ model{
 	variance <- 1/tau
 	k ~ dnorm(k_mu, k_tau) 
 	Linf ~ dnorm(Linf_mu,  Linf_tau)
-  Linf_mu ~ dnorm(67.5, 0.0001)
+  Linf_mu ~ dnorm(71.39, linf_perc)
 	Linf_tau ~ dgamma(0.01, 0.0001)
 	Linf_std <- sqrt(1/Linf_tau)
 	Shape ~ dunif(0, 100)
 	rate ~ dunif(0, 100)
-	k_mu ~ dbeta(0.242, 1)  T(0.01,0.9)
+	k_mu ~ dnorm(0.268, k_perc) T(0.01,0.99)
 	k_tau ~ dgamma(01, 0.0001) 
 	tau ~ dgamma(0.001, 0.0001)
+	
+	  # SD of Parameters
+    	sig.linf <- 12.34 * 2
+    	sig.k <- 0.0932 * 2
+    	
+    # Percision
+    linf_perc = pow(sig.linf, -2)
+    k_perc = pow(sig.k, -2)
 }
 ', 
-file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt")
+file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4.txt")
 )
 ```
 
@@ -347,40 +383,45 @@ n_thin = 50 # Retain one in n_thin samples from the posterior distribution.
 
 ### Running Bayesian Models - With Priors for Linf_mu and k_mu
 ```{r}
+# n_iterations = 100000 # How many total iterations to run
+# n_burnin = 150 # How many iterations to run during the model's burn in phase 
+# n_thin = 50 # R
+
 ## Model 1: Linf and K vary between individuals
 model_1 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
-
+print(model_1$BUGSoutput$summary)
+beep()
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 2: Linf varies between individuals, K is fixed
 model_2 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - updated priors.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
-
+print(model_2$BUGSoutput$summary)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 3: K varies between individuals, Linf is fixed
 model_3 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - updated priors.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
-
+print(model_3$BUGSoutput$summary[,1])
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ## Model 4: Linf and K are fixed
 model_4 = jags(data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - updated priors.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
-
+print(model_4$BUGSoutput$summary[,1])
 growth_models = list('model_1' = model_1, 'model_2' = model_2, 'model_3' = model_3, 'model_4' = model_4)
 
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
@@ -459,7 +500,7 @@ fig3 = ggplot(
               data = cv_df, 
               mapping = aes(x = `source of individual variability`, y = cv, col = Parameter)
               ) + 
-        geom_point() + 
+        geom_point(shape = c(17,16,17,16,17,16,17,16)) + 
         geom_line(aes(group = Parameter)) + 
         labs(
           x = 'Source of individual variability', 
@@ -959,7 +1000,7 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 ```{r}
 #### Sensitivity Analysis for Bayesian Model 1
 bayesian_sensitivity_fit_model_1 = jags(bayesian_sythetic_data, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 1.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, 
                n.chains = 3, n.iter = n_iterations, n.burn = n_burnin, n.thin = n_thin)
@@ -967,14 +1008,14 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ### Sensitivity Analysis for Bayesian Model 2
 bayesian_sensitivity_fit_model_2 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 2.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 ### Sensitivity Analysis for Bayesian Model 3
 bayesian_sensitivity_fit_model_3 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 3.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
@@ -982,7 +1023,7 @@ save.image(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 ### Sensitivity Analysis for Baysian Model 4 
 ## Fitting Model
 bayesian_sensitivity_fit_model_4 = jags(bayesian_sythetic_data, inits, 
-               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4 - No Tau Prior.txt"),
+               model.file = file.path(src_dir, "JAGS Models/VBGF JAGS Model 4.txt"),
                parameters.to.save =  c('Linf_mu', 'Linf_std', 'Linf_tau', 'Shape', 'k_mu', 'k_std', 'k_tau', 'rate', 'tau', 'variance'),
                DIC = T, n.chains = 3, n.iter = n_iterations, n.burnin = n_burnin, n.thin = n_thin)
 
@@ -1116,7 +1157,7 @@ write.csv(sensitivity_table, file.path(results_dir, 'Tables/table_6_sensitivity_
 ```{r}
 #### Figure 1: Histogram of fork length and dt
 library(ggplot2)
-blue ='#39A7D880'
+blue ='#39A7D890'
 red = '#E74A4340'
 
 ## Base R theme for ggplot to remove extraneous stuff
@@ -1131,7 +1172,7 @@ strip.background = element_blank()
 ### Figure 2 - Plots of data from different studies used to model growth
 ## Fig 2a - OTP data
 {
-pdf(file.path(fig_dir, 'Figure 2a: Tag recapture length histogram.pdf'), height = 6.45, width = 5.00,)
+pdf(file.path(fig_dir, 'Figures/Figure 2a: Tag recapture length histogram.pdf'), height = 6.45, width = 5.00,)
   par(mfrow = c(2, 1))
   # par(mfrow = c(3, 1), bg = 'black', col.axis = 'grey', col = 'grey', col.lab = 'grey', fg = 'grey')
   ### Subfigure 1:
@@ -1149,11 +1190,16 @@ dev.off()
 
 
 ### FIGURE 1b. scatter plot of otolith datasets
+otodat$pch_shape = NA
+for (i in 1:length(unique(otodat$source))){
+  otodat$pch_shape[otodat$source == unique(otodat$source)[i]] = i+14
+}
+
 oto_data_plot = ggplot(
               data = otodat, 
-              mapping = aes(x = age, y = len, col = source)
+              mapping = aes(x = age, y = len, group = source)
               ) + ylab('Fork Length (cm)') + xlab('Age (yrs)') +
-        geom_point() + scale_color_discrete(name = "Source", labels = c("Andrews et al. 2012 \n Bomb Carbon", "Andrews et al. 2012 \n Lead Radium", "Demartini et al. 1994", "Ralston and Miyamoto 1983"))
+        geom_point(aes(shape = factor(pch_shape), col = source)) + scale_color_discrete(name = "Source", labels = c("Andrews et al. 2012 \n Bomb Carbon", "Andrews et al. 2012 \n Lead Radium", "Demartini et al. 1994", "Ralston and Miyamoto 1983")) 
 
 print(oto_data_plot)
 
@@ -1185,7 +1231,7 @@ lfdat$my = paste(substr(strftime(lfdat$curr_month_year, '%B'), 1, 3), year(lfdat
 lfdat$month_ord = as.numeric(as.factor(lfdat$curr_month_year))
 
 
-modal_progression_fig = ggplot(data = lfdat, mapping = aes(x = month_ord, y = mode.len, col = cohort)) + 
+modal_progression_fig = ggplot(data = lfdat, mapping = aes(x = month_ord, y = mode.len, col = cohort, shape = cohort)) + 
   geom_point() + 
   geom_line() + 
   scale_color_discrete(name = "Spawning Cohort", labels = c('1988', "1989", "1990")) +  
@@ -1253,7 +1299,7 @@ pdf(file.path(results_dir, 'Figures/Fig4 - Predicted vs. Observed LR with valida
       ylab = 'Predicted Recapture Length (cm)', 
       xlim = c(15, 80),
       ylim = c(15, 80),
-      main = paste(model_params$model[i], '\n Linf = ', round(model_params$Linf[i], digits = 2),'k = ', round(model_params$Linf[i], digits = 2), sep = ""))
+      main = paste(model_params$model[i], '\n Linf = ', round(model_params$Linf[i], digits = 2),' k = ', round(model_params$k[i], digits = 2), sep = ""))
     abline(1, 1, lty = 2)
     arrows(x0 = 60, y0 = 70, x1 = 65, y1 = 70, length = 0.1, angle = 30, code = 2)
     text(x = 45, y = 70, labels = "Line of 1:1 agreement", cex = .75)
@@ -1277,6 +1323,26 @@ plot(fig_5)
 ggsave('Figures/Fig5_sensitive_differences.png', fig_6, device = 'pdf', path = results_dir)
 
 ```
+
+```{r}
+## Figure 1
+map_dir = "/Volumes/GoogleDrive/My Drive/Weng Lab/Personal_Folders/Steve/dissertation work/Ch 5. BACIP Analysis"
+
+stat_grids = readOGR(file.path(map_dir, 'data/mhi_brfa_fishgrid_map.mpk Folder/commondata/regs/Fishchart2008.shp'))
+stat_grids = stat_grids[stat_grids$AREA_ID %in% 100:600, ]
+
+coast = readOGR(file.path(map_dir, 'data/coast/coast_n83.shp')) #coastline
+coast = spTransform(coast, crs(stat_grids))
+
+{
+pdf(file.path(fig_dir, 'Figures/Fig1-StatGrids.pdf'), width = 11*2, height = 8.5*2)
+plot(stat_grids)
+plot(coast, col = 'lightgrey', add = T)
+text(stat_grids, labels = stat_grids$AREA_ID)
+dev.off()
+}
+```
+
 
 # 6. Workspace Cleanup
 Saving our R environment as an image for easy future reference

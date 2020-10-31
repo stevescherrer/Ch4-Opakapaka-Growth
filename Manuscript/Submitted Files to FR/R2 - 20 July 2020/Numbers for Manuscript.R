@@ -5,7 +5,7 @@ load(file.path(results_dir, 'Paka VBGF Workspace For FR Revisions.RData'))
 
 # Model 1, which incorporated individual variability in both L_∞ and K, yielded mean parameter estimates of...
 round(model_1$BUGSoutput$mean$Linf_mu, digits = 2)
-# 61.35
+# 61.49
 round(cv_df[cv_df$model == 'model_1' & cv_df$Parameter == "Linf", 'cv'], digits = 2)
 #  2.56
 round(model_1$BUGSoutput$mean$k_mu, digits = 2)
@@ -25,37 +25,37 @@ round(cv_df[cv_df$model == 'model_2' & cv_df$Parameter == "k", 'cv'], digits = 2
 
 # Under Model 3, where L_∞ was fixed and K was fit freely ...
 round(model_3$BUGSoutput$mean$Linf_mu, digits = 2)
-# 72.01
+# 74.14
 round(cv_df[cv_df$model == 'model_3' & cv_df$Parameter == "Linf", 'cv'], digits = 2)
 # 41.03
 round(model_3$BUGSoutput$mean$k_mu, digits = 2)
-# 0.19
+# 0.17
 round(cv_df[cv_df$model == 'model_3' & cv_df$Parameter == "k", 'cv'], digits = 2)
 # 8.67
 
 # ... for Model 4, where both parameters were fixed.
 round(model_4$BUGSoutput$mean$Linf_mu, digits = 2)
-# 74.82
+# 73.62
 round(cv_df[cv_df$model == 'model_4' & cv_df$Parameter == "Linf", 'cv'], digits = 2)
 # 42.71
 round(model_4$BUGSoutput$mean$k_mu, digits = 2)
-# 0.17
+# 0.18
 round(cv_df[cv_df$model == 'model_4' & cv_df$Parameter == "k", 'cv'], digits = 2)
 # 72.91
 
 ## DIC values
 # Model 4 had the lowest DIC ...
 model_4$BUGSoutput$DIC
-  # 4789.69
+  # 4788.539
 # ...followed by Model 3...
 model_3$BUGSoutput$DIC
-  # 5216.301
+  # 4974.611
 # ... , and Model 2 ...
 model_2$BUGSoutput$DIC
-  # 8644.455
+  # 8518.045
 # ... while Model 1 had the highest DIC
 model_1$BUGSoutput$DIC
-  # 8826.798
+  # 8581.735
 
 ### 3.4 Comparing model performance
 
@@ -102,27 +102,33 @@ round(sd(mod_eval_results$`model 5`, na.rm = T), 2)
 # 3.5 Sensitivity Analysis
 # Parameters estimated using the observed and synthetic data differed by as much as ...
 round(max(sensitivity_table$percent_k, sensitivity_table$percent_linf),2)
-  # 95.65
+  # 205.08
 round(median(c(abs(sensitivity_table$percent_k), abs(sensitivity_table$percent_linf))),2)
-  # 3.30
+  # 21.28
 
-## Estimates of L_∞ and K from the preferred integrative model (Model 11) estimated from synthetic data differed from the observed data by...
+## Model 7 was the most robust, with the smallest difference between L_∞ and K parameters estimated with real and synthetic datasets 
+sensitivity_table[sensitivity_table$Model == 'Model 7', 'percent_linf']
+# -1.13
+sensitivity_table[sensitivity_table$Model == 'Model 7', 'percent_k']
+# 8.7
+
+## The preferred integrated model (Model 11) was the second best performing model overall with L_∞ differing by 2.45% and K by 15.47%. 
 sensitivity_table[sensitivity_table$Model == 'Model 11', 'percent_linf']
-  # -0.69
+  # -2.45
 sensitivity_table[sensitivity_table$Model == 'Model 11', 'percent_k']
-  # 2.46
+  # 15.47
 
 # Parameter estimates for Model 1, the Bayesian model that accounted for individual differences in each parameter and had the lowest coefficient of variation across both parameters, differed by...
 abs(sensitivity_table[sensitivity_table$Model == 'Bayesian Model 1 (with Priors)', 'percent_linf'])
-  # 1.23
+  # 36.8
 abs(sensitivity_table[sensitivity_table$Model == 'Bayesian Model 1 (with Priors)', 'percent_k'])
-  # 4.09
+  # 122.46
 
 ## Parameters for Model 4, the Bayesian model with the lowest DIC score, differed between observed and synthetic data by ...
 abs(sensitivity_table[sensitivity_table$Model == 'Bayesian Model 4 (with Priors)', 'percent_linf'])
-  # 0.22
+  # 20.6
 abs(sensitivity_table[sensitivity_table$Model == 'Bayesian Model 4 (with Priors)', 'percent_k'])
-  # 1.04
+  # 135.04
 
 ### Table 3 values to plug and play
 table_3 = data.frame(
@@ -133,8 +139,8 @@ table_3 = data.frame(
     cbind('Model 4', model_4$BUGSoutput$summary[ ,colnames(model_1$BUGSoutput$summary) %in% c('mean', 'sd', '2.5%', '50%', '97.5%', 'Rhat', 'n.eff')])
   )
 )
+View(table_3)
 
 ## Write out for easy drag & drop
-write.csv(table_3, file.path(results_dir, 'table_3 - Bayesian Parameter Estimates.csv'))
-
+write.csv(table_3, file.path(results_dir, 'Tables/table_3 - Bayesian Parameter Estimates.csv'))
 
